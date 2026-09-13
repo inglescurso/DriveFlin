@@ -1600,6 +1600,10 @@ app.post("/Library/VirtualFolders", async (c) => {
 
   let paths = c.req.queries("paths");
   if (!paths && body.Paths) paths = body.Paths;
+  if (!paths && body.LibraryOptions && body.LibraryOptions.PathInfos && body.LibraryOptions.PathInfos.length > 0) {
+    paths = body.LibraryOptions.PathInfos.map((p: any) => p.Path);
+  }
+  
   let folderId = paths && paths.length > 0 ? paths[0] : "root";
   const idMatch = folderId.match(/[-\w]{25,}/);
   if (idMatch) folderId = idMatch[0];
@@ -1651,9 +1655,12 @@ app.post("/Library/VirtualFolders/Paths", async (c) => {
   let body: any = {};
   try { body = await c.req.json(); } catch (e) {}
   const name = c.req.query("name") || body.Name || "";
-  const path = c.req.query("path") || body.Path || "";
+  let path = c.req.query("path") || body.Path || "";
   if (name && path) {
-    await c.env.DB.prepare("UPDATE Libraries SET FolderId = ? WHERE Name = ?").bind(path, name).run();
+    let folderId = path;
+    const idMatch = folderId.match(/[-\w]{25,}/);
+    if (idMatch) folderId = idMatch[0];
+    await c.env.DB.prepare("UPDATE Libraries SET FolderId = ? WHERE Name = ?").bind(folderId, name).run();
     try { c.executionCtx?.waitUntil(runSync(c.env)); } catch (e) { runSync(c.env); }
   }
   return c.body(null, 204);
