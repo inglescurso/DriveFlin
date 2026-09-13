@@ -2,7 +2,7 @@ export class GoogleDrive {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
-  private teamDriveId: string;
+  public teamDriveId: string;
   private accessToken: string | null = null;
   private tokenExpiresAt: number = 0;
 
