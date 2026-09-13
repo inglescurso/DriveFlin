@@ -61,6 +61,8 @@ export class GoogleDrive {
     
     if (folderId === 'root' && this.teamDriveId && this.teamDriveId.trim() !== '') {
       urlBase += `&q='${this.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${this.teamDriveId}`;
+    } else if (folderId !== 'root') {
+      urlBase += `&q='${folderId}'+in+parents+and+trashed=false&corpora=allDrives`;
     } else {
       urlBase += `&q='${folderId}'+in+parents+and+trashed=false`;
     }
