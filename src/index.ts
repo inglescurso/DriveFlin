@@ -1797,7 +1797,7 @@ app.get("/Environment/ParentPath", async (c) => {
     const gdrive = new GoogleDrive(c.env);
     const file = await gdrive.getFile(path);
     if (file && file.parents && file.parents.length > 0) {
-      return c.text(file.parents[0]);
+      return c.text("/" + file.parents[0]);
     }
   } catch (e) {}
   return c.text("root");
