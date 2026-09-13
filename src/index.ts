@@ -1724,7 +1724,7 @@ app.get("/Environment/DirectoryContents", async (c) => {
   if (idMatch) path = idMatch[0];
 
   const includeDirectories = c.req.query("includeDirectories") !== "false";
-  const includeFiles = c.req.query("includeFiles") === "true";
+  const includeFiles = c.req.query("includeFiles") !== "false";
 
   try {
     const gdrive = new GoogleDrive(c.env);
@@ -1734,8 +1734,8 @@ app.get("/Environment/DirectoryContents", async (c) => {
     const items: any[] = [];
     if (data && data.files) {
       for (const file of data.files) {
-        const isFolder = file.mimeType === "application/vnd.google-apps.folder" || 
-                         file.mimeType === "application/vnd.google-apps.shortcut";
+        const targetMime = file.shortcutDetails?.targetMimeType || file.mimeType;
+        const isFolder = targetMime === "application/vnd.google-apps.folder";
         
         let pathId = file.id;
         if (file.mimeType === "application/vnd.google-apps.shortcut") {
