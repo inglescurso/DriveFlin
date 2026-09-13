@@ -80,7 +80,7 @@ export async function runSync(env: any) {
     try {
       const libraryId = lib.Id;
       const libraryFolderId = lib.FolderId;
-      if (!libraryFolderId || libraryFolderId === 'root') continue;
+      if (!libraryFolderId) continue;
 
       const isMovieLib = (lib.CollectionType === 'movies') || lib.Name.toLowerCase().includes('filme');
       const isTvLib = (lib.CollectionType === 'tvshows') || lib.Name.toLowerCase().includes('serie');
