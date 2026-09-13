@@ -3635,7 +3635,7 @@ const itemsHandler = async (c: any) => {
         AlbumArtist: "Vários Artistas",
         AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
         ImageTags: { Primary: "cached" },
-        BackdropImageTags: ["cached"],
+        BackdropImageTags: undefined,
         UserData: {
           PlaybackPositionTicks: 0,
           PlayCount: 0,
@@ -3648,6 +3648,67 @@ const itemsHandler = async (c: any) => {
       return c.json({ Items: [album], TotalRecordCount: 1, StartIndex: 0 });
     }
   }
+
+  // --- FALLBACK GOOGLE DRIVE ---
+  if (results.length === 0 && parentId && !parentId.startsWith("album_") && !parentId.startsWith("view_") && !parentId.startsWith("artist_") && !parentId.startsWith("genre_")) {
+    try {
+      let driveFolderId = parentId;
+      const maybeLib = await resolveLibrary(c.env.DB, parentId);
+      if (maybeLib && maybeLib.FolderId) {
+        driveFolderId = maybeLib.FolderId;
+      } else {
+        const maybeItem = await resolveItem(c.env.DB, parentId);
+        if (maybeItem && maybeItem.FolderId) {
+          driveFolderId = maybeItem.FolderId;
+        } else if (maybeItem && maybeItem.Id) {
+          driveFolderId = maybeItem.Id;
+        }
+      }
+
+      const gdrive = new GoogleDrive(c.env);
+      const data = await gdrive.listFolder(driveFolderId);
+      if (data && data.files) {
+        let driveItems = data.files.map((file: any) => {
+          const targetMime = file.shortcutDetails?.targetMimeType || file.mimeType;
+          const isFolder = targetMime === "application/vnd.google-apps.folder";
+          const isVideo = file.mimeType?.startsWith("video/") || targetMime?.startsWith("video/");
+          const isAudio = file.mimeType?.startsWith("audio/") || targetMime?.startsWith("audio/");
+          const type = isFolder ? "Folder" : (isVideo ? "Video" : (isAudio ? "Audio" : "Unknown"));
+          
+          let pathId = file.shortcutDetails?.targetId || file.id;
+          const itemUuid = toValidUuid(pathId);
+
+          return {
+            Name: file.name,
+            ServerId: SERVER_ID,
+            Id: itemUuid,
+            Path: `/media/${pathId}`,
+            IsFolder: isFolder,
+            Type: type,
+            LocationType: "FileSystem",
+            MediaType: isVideo ? "Video" : (isAudio ? "Audio" : "Unknown"),
+            Size: file.size ? parseInt(file.size) : undefined,
+            DateCreated: file.createdTime ? `${String(file.createdTime).replace(" ", "T")}.0000000Z` : "2024-01-01T00:00:00.0000000Z",
+            ImageTags: {},
+            UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false, Key: itemUuid, ItemId: itemUuid }
+          };
+        });
+        
+        if (includeItemTypes.length > 0) {
+          driveItems = driveItems.filter((r: any) => includeItemTypes.includes(r.Type) || (r.Type === "Video" && includeItemTypes.includes("Movie")) || (r.Type === "Folder" && includeItemTypes.includes("Folder")));
+        } else if (excludeItemTypes.length > 0) {
+          driveItems = driveItems.filter((r: any) => !excludeItemTypes.includes(r.Type) && !(r.Type === "Video" && excludeItemTypes.includes("Movie")));
+        }
+
+        totalRecordCount = driveItems.length;
+        const sliced = driveItems.slice(startIndex, startIndex + limit);
+        return c.json({ Items: sliced, TotalRecordCount: totalRecordCount, StartIndex: startIndex });
+      }
+    } catch (e) {
+      return c.json({ Items: [], TotalRecordCount: 0, StartIndex: 0 });
+    }
+  }
+  // -----------------------------
 
   const itemIds = results.map((r: any) => r.Id);
   const userDataMap = await fetchUserItemDataMap(c.env.DB, userId, itemIds);
