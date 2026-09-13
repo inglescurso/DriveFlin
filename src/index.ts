@@ -1600,7 +1600,19 @@ app.post("/Library/VirtualFolders", async (c) => {
 
   let paths = c.req.queries("paths");
   if (!paths && body.Paths) paths = body.Paths;
-  const folderId = paths && paths.length > 0 ? paths[0] : "root";
+  let folderId = paths && paths.length > 0 ? paths[0] : "root";
+  const idMatch = folderId.match(/[-\w]{25,}/);
+  if (idMatch) folderId = idMatch[0];
+
+  try {
+    if (folderId !== "root") {
+      const gdrive = new GoogleDrive(c.env);
+      const file = await gdrive.getFile(folderId);
+      if (file && file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails?.targetId) {
+        folderId = file.shortcutDetails.targetId;
+      }
+    }
+  } catch (e) {}
 
   try {
     const id = "view_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -1707,7 +1719,10 @@ app.get("/Environment/DefaultDirectoryBrowser", (c) => {
 });
 
 app.get("/Environment/DirectoryContents", async (c) => {
-  const path = c.req.query("path") || "root";
+  let path = c.req.query("path") || "root";
+  const idMatch = path.match(/[-\w]{25,}/);
+  if (idMatch) path = idMatch[0];
+
   const includeDirectories = c.req.query("includeDirectories") !== "false";
   const includeFiles = c.req.query("includeFiles") === "true";
 
@@ -1719,17 +1734,24 @@ app.get("/Environment/DirectoryContents", async (c) => {
     const items: any[] = [];
     if (data && data.files) {
       for (const file of data.files) {
-        const isFolder = file.mimeType === "application/vnd.google-apps.folder";
+        const isFolder = file.mimeType === "application/vnd.google-apps.folder" || 
+                         file.mimeType === "application/vnd.google-apps.shortcut";
+        
+        let pathId = file.id;
+        if (file.mimeType === "application/vnd.google-apps.shortcut") {
+          pathId = file.shortcutDetails?.targetId || file.id;
+        }
+
         if (isFolder && includeDirectories) {
           items.push({
             Name: file.name,
-            Path: file.id,
+            Path: pathId,
             Type: "Directory",
           });
         } else if (!isFolder && includeFiles) {
           items.push({
             Name: file.name,
-            Path: file.id,
+            Path: pathId,
             Type: "File",
           });
         }
@@ -1744,7 +1766,10 @@ app.get("/Environment/DirectoryContents", async (c) => {
 });
 
 app.get("/Environment/ParentPath", async (c) => {
-  const path = c.req.query("path");
+  let path = c.req.query("path");
+  const idMatch = path?.match(/[-\w]{25,}/);
+  if (idMatch) path = idMatch[0];
+
   if (!path || path === "root" || path === "/") {
     return c.text("");
   }
@@ -1766,6 +1791,9 @@ app.post("/Environment/ValidatePath", async (c) => {
       path = body?.Path || body?.path;
     } catch (e) {}
   }
+  const idMatch = path?.match(/[-\w]{25,}/);
+  if (idMatch) path = idMatch[0];
+
   if (!path || path === "root" || path === "/") {
     return c.body(null, 204);
   }

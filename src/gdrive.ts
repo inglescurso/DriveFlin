@@ -43,9 +43,12 @@ export class GoogleDrive {
     return this.accessToken || '';
   }
 
-  async listFolder(folderId: string = 'root') {
+  async listFolder(rawFolderId: string = 'root') {
+    const idMatch = rawFolderId.match(/[-\w]{25,}/);
+    const folderId = idMatch ? idMatch[0] : rawFolderId;
+
     const token = await this.getAccessToken();
-    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
     
     if (folderId === 'root' && this.teamDriveId && this.teamDriveId.trim() !== '') {
       urlBase += `&q='${this.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${this.teamDriveId}`;
@@ -67,7 +70,7 @@ export class GoogleDrive {
       
       if (!res.ok && folderId === 'root' && !pageToken) {
         // Fallback for root if teamDriveId fails
-        urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&q='root'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+        urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&q='root'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
         res = await fetch(urlBase, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -142,7 +145,7 @@ export class GoogleDrive {
 
   async getFile(fileId: string): Promise<any> {
     const token = await this.getAccessToken();
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents,trashed&supportsAllDrives=true`, {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents,trashed,shortcutDetails&supportsAllDrives=true`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) return null;
