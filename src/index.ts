@@ -1791,16 +1791,16 @@ app.get("/Environment/ParentPath", async (c) => {
   if (idMatch) path = idMatch[0];
 
   if (!path || path === "root" || path === "/") {
-    return c.text("");
+    return c.json("");
   }
   try {
     const gdrive = new GoogleDrive(c.env);
     const file = await gdrive.getFile(path);
     if (file && file.parents && file.parents.length > 0) {
-      return c.text("/" + file.parents[0]);
+      return c.json("/" + file.parents[0]);
     }
   } catch (e) {}
-  return c.text("root");
+  return c.json("root");
 });
 
 app.post("/Environment/ValidatePath", async (c) => {
