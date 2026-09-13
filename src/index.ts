@@ -1600,7 +1600,11 @@ app.post("/Library/VirtualFolders", async (c) => {
 
   let paths = c.req.queries("paths");
   if (!paths && body.Paths) paths = body.Paths;
-  const folderId = paths && paths.length > 0 ? paths[0] : "root";
+  let folderId = paths && paths.length > 0 ? paths[0] : "root";
+  const idMatch = folderId.match(/[-\w]{25,}/);
+  if (idMatch) {
+    folderId = idMatch[0];
+  }
 
   try {
     const id = "view_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -1719,17 +1723,25 @@ app.get("/Environment/DirectoryContents", async (c) => {
     const items: any[] = [];
     if (data && data.files) {
       for (const file of data.files) {
-        const isFolder = file.mimeType === "application/vnd.google-apps.folder";
+        const isFolder = file.mimeType === "application/vnd.google-apps.folder" || 
+                         (file.mimeType === "application/vnd.google-apps.shortcut" && 
+                          file.shortcutDetails?.targetMimeType === "application/vnd.google-apps.folder");
+        
+        let pathId = file.id;
+        if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails?.targetId) {
+          pathId = file.shortcutDetails.targetId;
+        }
+
         if (isFolder && includeDirectories) {
           items.push({
             Name: file.name,
-            Path: file.id,
+            Path: pathId,
             Type: "Directory",
           });
         } else if (!isFolder && includeFiles) {
           items.push({
             Name: file.name,
-            Path: file.id,
+            Path: pathId,
             Type: "File",
           });
         }
@@ -1744,9 +1756,13 @@ app.get("/Environment/DirectoryContents", async (c) => {
 });
 
 app.get("/Environment/ParentPath", async (c) => {
-  const path = c.req.query("path");
+  let path = c.req.query("path");
   if (!path || path === "root" || path === "/") {
     return c.text("");
+  }
+  const match = path.match(/[-\w]{25,}/);
+  if (match) {
+    path = match[0];
   }
   try {
     const gdrive = new GoogleDrive(c.env);
@@ -1769,6 +1785,13 @@ app.post("/Environment/ValidatePath", async (c) => {
   if (!path || path === "root" || path === "/") {
     return c.body(null, 204);
   }
+  
+  // Extract ID if it's a full URL
+  const match = path.match(/[-\w]{25,}/);
+  if (match) {
+    path = match[0];
+  }
+
   try {
     const gdrive = new GoogleDrive(c.env);
     const file = await gdrive.getFile(path);
@@ -1776,6 +1799,7 @@ app.post("/Environment/ValidatePath", async (c) => {
       return c.body(null, 204);
     }
   } catch (e) {}
+  
   if (/^[a-zA-Z0-9_-]{15,}$/.test(path)) {
     return c.body(null, 204);
   }

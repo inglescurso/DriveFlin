@@ -43,12 +43,19 @@ export class GoogleDrive {
     return this.accessToken || '';
   }
 
-  async listFolder(folderId: string = 'root') {
+  async listFolder(rawFolderId: string = 'root') {
+    const folderIdMatch = rawFolderId.match(/[-\w]{25,}/);
+    const folderId = folderIdMatch ? folderIdMatch[0] : rawFolderId;
+
     const token = await this.getAccessToken();
-    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
     
     if (folderId === 'root' && this.teamDriveId && this.teamDriveId.trim() !== '') {
-      urlBase += `&q='${this.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${this.teamDriveId}`;
+      const tdMatch = this.teamDriveId.match(/[-\w]{25,}/);
+      const tdId = tdMatch ? tdMatch[0] : this.teamDriveId.trim();
+      urlBase += `&q='${tdId}'+in+parents+and+trashed=false&corpora=drive&driveId=${tdId}`;
+    } else if (folderId !== 'root') {
+      urlBase += `&q='${folderId}'+in+parents+and+trashed=false&corpora=allDrives`;
     } else {
       urlBase += `&q='${folderId}'+in+parents+and+trashed=false`;
     }
