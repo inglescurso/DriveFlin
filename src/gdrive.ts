@@ -7,16 +7,16 @@ export class GoogleDrive {
   private tokenExpiresAt: number = 0;
 
   constructor(env: any) {
-    const c1 = "510373931856-t9048o";
-    const c2 = "6ct7r46vbs5997vrl54h80vltv.apps.googleusercontent.com";
+    const c1 = "1028155325038-5t1fh7m";
+    const c2 = "b6815hjqcpalurf0pn183e1l0.apps.googleusercontent.com";
     this.clientId = (env.GDRIVE_CLIENT_ID || (c1 + c2)).trim();
     
-    const s1 = "GOCSPX-DX5P";
-    const s2 = "IZNJO91tv_Q8lMwX6D0Cgc78";
+    const s1 = "GOCSPX-HtsL";
+    const s2 = "ZAO2Rz9oig5CtX1e8msPJR6q";
     this.clientSecret = (env.GDRIVE_CLIENT_SECRET || (s1 + s2)).trim();
     
-    const r1 = "1//0ho0zh4I4FBJvCgYIARAAGBESNwF-L9IrTlv3";
-    const r2 = "w_f6AQhHc2zlABy2Q1A4KlISlAN4JAvqrfLBkgAae1wUBIdESbjacR44iebH5fk";
+    const r1 = "1//0hWCLVt6rjMVLCgYIARAAGBESNwF-L9IrkQ";
+    const r2 = "pnVTj6Cm90oXkNlVT9IpCo6T8WF_gjoiz25XF5SM1ylpWJOGaR4KynpdNPrZ3qRnM";
     this.refreshToken = (env.GDRIVE_REFRESH_TOKEN || (r1 + r2)).trim();
     
     this.teamDriveId = (env.GDRIVE_TEAM_DRIVE_ID || '').trim();
