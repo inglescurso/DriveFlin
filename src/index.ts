@@ -1723,8 +1723,8 @@ app.get("/Environment/DirectoryContents", async (c) => {
   const idMatch = path.match(/[-\w]{25,}/);
   if (idMatch) path = idMatch[0];
 
-  const includeDirectories = c.req.query("includeDirectories") !== "false";
-  const includeFiles = c.req.query("includeFiles") !== "false";
+  const includeDirectories = c.req.query("includeDirectories") === "true";
+  const includeFiles = c.req.query("includeFiles") === "true";
 
   try {
     const gdrive = new GoogleDrive(c.env);
@@ -1990,7 +1990,12 @@ const handleUserViews = async (c: any) => {
       ImageTags: { Primary: getImageTag(row.PrimaryImageFileId) || "cached" },
       PrimaryImageTag: getImageTag(row.PrimaryImageFileId) || "cached",
       PrimaryImageItemId: uuid,
-      BackdropImageTags: [getImageTag(row.PrimaryImageFileId) || "cached"],
+      BackdropImageTags: row.PrimaryImageFileId ? [getImageTag(row.PrimaryImageFileId) || "cached"] : undefined,
+      UserData: { Played: false, PlayCount: 0, IsFavorite: false, PlaybackPositionTicks: 0 },
+      ChildCount: 0,
+      RecursiveItemCount: 0,
+      DateCreated: "2023-01-01T00:00:00Z",
+      PrimaryImageAspectRatio: 1.7777777777777777,
     };
   });
   return c.json({ Items: items, TotalRecordCount: items.length });
@@ -2033,7 +2038,12 @@ const handleUserViewsGeneral = async (c: any) => {
       ImageTags: { Primary: getImageTag(row.PrimaryImageFileId) || "cached" },
       PrimaryImageTag: getImageTag(row.PrimaryImageFileId) || "cached",
       PrimaryImageItemId: uuid,
-      BackdropImageTags: [getImageTag(row.PrimaryImageFileId) || "cached"],
+      BackdropImageTags: row.PrimaryImageFileId ? [getImageTag(row.PrimaryImageFileId) || "cached"] : undefined,
+      UserData: { Played: false, PlayCount: 0, IsFavorite: false, PlaybackPositionTicks: 0 },
+      ChildCount: 0,
+      RecursiveItemCount: 0,
+      DateCreated: "2023-01-01T00:00:00Z",
+      PrimaryImageAspectRatio: 1.7777777777777777,
     };
   });
   return c.json({ Items: items, TotalRecordCount: items.length });
@@ -2646,11 +2656,11 @@ const handleLatestItems = async (c: any) => {
       IsPlayable: isVideo || isAudio,
       PlayAccess: "Full",
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
-      AlbumId: isAudio ? "album_view_musicas" : undefined,
+      AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
       PrimaryImageTag: row.PrimaryImageFileId ? (getImageTag(row.PrimaryImageFileId) || "cached") : "cached",
       ImageTags: { Primary: row.PrimaryImageFileId ? (getImageTag(row.PrimaryImageFileId) || "cached") : "cached" },
       BackdropImageTags: row.BackdropImageFileId ? [getImageTag(row.BackdropImageFileId) || "cached"] : ["cached"],
@@ -2819,7 +2829,7 @@ const getItemById = async (c: any, itemId: string) => {
       LocationType: "FileSystem",
       PrimaryImageTag: hasImage ? "cached" : undefined,
       ImageTags: hasImage ? { Primary: "cached" } : {},
-      BackdropImageTags: [],
+      BackdropImageTags: undefined,
     };
   }
 
@@ -2840,9 +2850,9 @@ const getItemById = async (c: any, itemId: string) => {
       RecursiveItemCount: childCount,
       Overview: "Álbum de músicas da biblioteca.",
       Artists: ["Vários Artistas"],
-      ArtistItems: [{ Name: "Vários Artistas", Id: "artist_varios" }],
+      ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
       AlbumArtist: "Vários Artistas",
-      AlbumArtists: [{ Name: "Vários Artistas", Id: "artist_varios" }],
+      AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
       ImageTags: { Primary: "cached" },
       BackdropImageTags: ["cached"],
       UserData: {
@@ -3014,11 +3024,11 @@ const getItemById = async (c: any, itemId: string) => {
     Tags: genres,
     ProviderIds: { Tmdb: row.TmdbId || (tmdbDet?.id ? String(tmdbDet.id) : undefined) },
     Artists: isAudio ? ["Vários Artistas"] : undefined,
-    ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+    ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
     Album: isAudio ? "Músicas" : undefined,
-    AlbumId: isAudio ? "album_view_musicas" : undefined,
+    AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
     AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-    AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+    AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
     CanDownload: false,
     CanDelete: false,
     Chapters: [],
@@ -3613,7 +3623,7 @@ const itemsHandler = async (c: any) => {
       const album = {
         Name: "Músicas",
         ServerId: SERVER_ID,
-        Id: `album_${parentId || 'default'}`,
+        Id: toValidUuid(`album_${parentId || 'default'}`),
         Type: "MusicAlbum",
         IsFolder: true,
         LocationType: "FileSystem",
@@ -3621,9 +3631,9 @@ const itemsHandler = async (c: any) => {
         ChildCount: audioRes.c,
         RecursiveItemCount: audioRes.c,
         Artists: ["Vários Artistas"],
-        ArtistItems: [{ Name: "Vários Artistas", Id: "artist_varios" }],
+        ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
         AlbumArtist: "Vários Artistas",
-        AlbumArtists: [{ Name: "Vários Artistas", Id: "artist_varios" }],
+        AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
         ImageTags: { Primary: "cached" },
         BackdropImageTags: ["cached"],
         UserData: {
@@ -3632,7 +3642,7 @@ const itemsHandler = async (c: any) => {
           IsFavorite: false,
           Played: false,
           Key: `album_${parentId || 'default'}`,
-          ItemId: `album_${parentId || 'default'}`,
+          ItemId: toValidUuid(`album_${parentId || 'default'}`),
         }
       };
       return c.json({ Items: [album], TotalRecordCount: 1, StartIndex: 0 });
@@ -3697,11 +3707,11 @@ const itemsHandler = async (c: any) => {
       IsPlayable: isVideo || isAudio,
       PlayAccess: "Full",
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
-      AlbumId: isAudio ? "album_view_musicas" : undefined,
+      AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
       MediaSources: (isVideo || isAudio)
         ? [buildMediaSource(row, parsed, isVideo, isAudio, container, itemUuid)]
         : undefined,
@@ -4089,9 +4099,9 @@ const handleShowsEpisodes = async (c: any) => {
       PlayAccess: "Full",
       IsPlayable: true,
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: "artist_varios" }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
-      AlbumId: isAudio ? "album_view_musicas" : undefined,
+      AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
       CanDownload: false,
       CanDelete: false,
@@ -4108,7 +4118,7 @@ const handleShowsEpisodes = async (c: any) => {
       ProductionYear: seriesYear,
       PremiereDate: seriesPremiere,
       CommunityRating: 7.0,
-      BackdropImageTags: [],
+      BackdropImageTags: undefined,
       SortName: (cleanMediaTitle(epName).query || epName).toLowerCase(),
       OriginalTitle: epName,
       DisplayPreferencesId: toValidUuid("displaypref_" + row.Id),
@@ -4189,11 +4199,11 @@ app.get("/Artists", async (c) => {
     {
       Name: "Vários Artistas",
       ServerId: SERVER_ID,
-      Id: "artist_various",
+      Id: toValidUuid("artist_various"),
       Type: "MusicArtist",
       IsFolder: true,
       ImageTags: {},
-      UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false, Key: "artist_various", ItemId: "artist_various" }
+      UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false, Key: toValidUuid("artist_various"), ItemId: toValidUuid("artist_various") }
     }
   ];
   const filtered = searchTerm ? artists.filter(a => a.Name.toLowerCase().includes(searchTerm)) : artists;
@@ -4210,11 +4220,11 @@ app.get("/Artists/AlbumArtists", async (c) => {
     {
       Name: "Vários Artistas",
       ServerId: SERVER_ID,
-      Id: "artist_various",
+      Id: toValidUuid("artist_various"),
       Type: "MusicArtist",
       IsFolder: true,
       ImageTags: {},
-      UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false, Key: "artist_various", ItemId: "artist_various" }
+      UserData: { PlaybackPositionTicks: 0, PlayCount: 0, IsFavorite: false, Played: false, Key: toValidUuid("artist_various"), ItemId: toValidUuid("artist_various") }
     }
   ];
   const filtered = searchTerm ? artists.filter(a => a.Name.toLowerCase().includes(searchTerm)) : artists;
