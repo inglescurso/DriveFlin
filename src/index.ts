@@ -1728,7 +1728,7 @@ app.get("/Environment/DirectoryContents", async (c) => {
 
   try {
     const gdrive = new GoogleDrive(c.env);
-    const targetFolderId = !path || path === "/" || path === "" || path === "root" ? "root" : path;
+    const targetFolderId = !path || path === "/" || path === "" || path === "root" || path === "/root" ? "root" : path;
     const data = await gdrive.listFolder(targetFolderId);
 
     const items: any[] = [];
@@ -1745,13 +1745,13 @@ app.get("/Environment/DirectoryContents", async (c) => {
         if (isFolder && includeDirectories) {
           items.push({
             Name: file.name,
-            Path: pathId,
+            Path: "/" + pathId,
             Type: "Directory",
           });
         } else if (!isFolder && includeFiles) {
           items.push({
             Name: file.name,
-            Path: pathId,
+            Path: "/" + pathId,
             Type: "File",
           });
         }
