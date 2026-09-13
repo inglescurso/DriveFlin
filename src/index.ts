@@ -1765,6 +1765,26 @@ app.get("/Environment/DirectoryContents", async (c) => {
   }
 });
 
+app.get("/DebugDrive", async (c) => {
+  try {
+    const gdrive = new GoogleDrive(c.env);
+    const token = await gdrive.getAccessToken();
+    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+    if (gdrive.teamDriveId && gdrive.teamDriveId.trim() !== '') {
+      urlBase += `&q='${gdrive.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${gdrive.teamDriveId}`;
+    } else {
+      urlBase += `&q='root'+in+parents+and+trashed=false`;
+    }
+    const res = await fetch(urlBase, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const text = await res.text();
+    return c.json({ status: res.status, url: urlBase, response: text });
+  } catch (e: any) {
+    return c.json({ error: e.message });
+  }
+});
+
 app.get("/Environment/ParentPath", async (c) => {
   let path = c.req.query("path");
   const idMatch = path?.match(/[-\w]{25,}/);
