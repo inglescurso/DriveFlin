@@ -45,7 +45,7 @@ export class GoogleDrive {
 
   async listFolder(folderId: string = 'root') {
     const token = await this.getAccessToken();
-    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
     
     if (folderId === 'root' && this.teamDriveId && this.teamDriveId.trim() !== '') {
       urlBase += `&q='${this.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${this.teamDriveId}`;
@@ -67,7 +67,7 @@ export class GoogleDrive {
       
       if (!res.ok && folderId === 'root' && !pageToken) {
         // Fallback for root if teamDriveId fails
-        urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&q='root'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+        urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&q='root'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
         res = await fetch(urlBase, {
           headers: { Authorization: `Bearer ${token}` }
         });
