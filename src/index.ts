@@ -797,7 +797,7 @@ const getScheduledTasksList = () => {
       Name: "Escanear Bibliotecas",
       State: scanTaskState,
       CurrentProgressPercentage: scanTaskState === "Running" ? 50 : 0,
-      Id: "task_scan_library",
+      Id: toValidUuid("task_scan_library"),
       Description: "Escaneia o Google Drive em busca de novos filmes, séries e músicas",
       Category: "Library",
       IsHidden: false,
@@ -809,14 +809,14 @@ const getScheduledTasksList = () => {
         Status: "Completed",
         Name: "Escanear Bibliotecas",
         Key: "RefreshLibrary",
-        Id: "task_scan_library",
+        Id: toValidUuid("task_scan_library"),
       },
     },
     {
       Name: "Backup do Banco de Dados",
       State: backupTaskState,
       CurrentProgressPercentage: backupTaskState === "Running" ? 50 : 0,
-      Id: "task_backup_database",
+      Id: toValidUuid("task_backup_database"),
       Description: "Exporta backup completo do DriveFlin para a pasta DriveFlin_Backups no Google Drive",
       Category: "Maintenance",
       IsHidden: false,
@@ -828,7 +828,7 @@ const getScheduledTasksList = () => {
         Status: "Completed",
         Name: "Backup do Banco de Dados",
         Key: "BackupDatabase",
-        Id: "task_backup_database",
+        Id: toValidUuid("task_backup_database"),
       },
     },
   ];
@@ -1725,13 +1725,30 @@ app.get("/Environment/DefaultDirectoryBrowser", (c) => {
   return c.json({ Path: "root" });
 });
 
+// O cliente Web (directorybrowser.js) só envia includeFiles / includeDirectories quando
+// o chamador define explicitamente; caso contrário os parâmetros são OMITIDOS da query.
+// O backend oficial em C# usa default = false para ambos, e por isso devolveria [] no
+// seletor de pastas. Como o DriveFlin funciona também como navegador de arquivos do Drive,
+// adotamos default = true quando o parâmetro está ausente, e seguimos o cliente quando ele
+// envia o valor explicitamente (inclusive "false").
+// "undefined"/"" são tratados como ausentes para não devolver lista vazia por engano.
+function parseBoolQuery(value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined || value === null) return defaultValue;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return defaultValue;
+}
+
 app.get("/Environment/DirectoryContents", async (c) => {
   let path = c.req.query("path") || "root";
   const idMatch = path.match(/[-\w]{25,}/);
   if (idMatch) path = idMatch[0];
 
-  const includeDirectories = c.req.query("includeDirectories") === "true";
-  const includeFiles = c.req.query("includeFiles") === "true";
+  const includeDirectories = parseBoolQuery(c.req.query("includeDirectories"), true);
+  const includeFiles = parseBoolQuery(c.req.query("includeFiles"), true);
+
+  if (!includeDirectories && !includeFiles) return c.json([]);
 
   try {
     const gdrive = new GoogleDrive(c.env);
@@ -2663,11 +2680,11 @@ const handleLatestItems = async (c: any) => {
       IsPlayable: isVideo || isAudio,
       PlayAccess: "Full",
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
       AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
       PrimaryImageTag: row.PrimaryImageFileId ? (getImageTag(row.PrimaryImageFileId) || "cached") : "cached",
       ImageTags: { Primary: row.PrimaryImageFileId ? (getImageTag(row.PrimaryImageFileId) || "cached") : "cached" },
       BackdropImageTags: row.BackdropImageFileId ? [getImageTag(row.BackdropImageFileId) || "cached"] : ["cached"],
@@ -2857,9 +2874,9 @@ const getItemById = async (c: any, itemId: string) => {
       RecursiveItemCount: childCount,
       Overview: "Álbum de músicas da biblioteca.",
       Artists: ["Vários Artistas"],
-      ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
+      ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }],
       AlbumArtist: "Vários Artistas",
-      AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
+      AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }],
       ImageTags: { Primary: "cached" },
       BackdropImageTags: ["cached"],
       UserData: {
@@ -3031,11 +3048,11 @@ const getItemById = async (c: any, itemId: string) => {
     Tags: genres,
     ProviderIds: { Tmdb: row.TmdbId || (tmdbDet?.id ? String(tmdbDet.id) : undefined) },
     Artists: isAudio ? ["Vários Artistas"] : undefined,
-    ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+    ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
     Album: isAudio ? "Músicas" : undefined,
     AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
     AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-    AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+    AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
     CanDownload: false,
     CanDelete: false,
     Chapters: [],
@@ -3638,9 +3655,9 @@ const itemsHandler = async (c: any) => {
         ChildCount: audioRes.c,
         RecursiveItemCount: audioRes.c,
         Artists: ["Vários Artistas"],
-        ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
+        ArtistItems: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }],
         AlbumArtist: "Vários Artistas",
-        AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }],
+        AlbumArtists: [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }],
         ImageTags: { Primary: "cached" },
         BackdropImageTags: undefined,
         UserData: {
@@ -3775,11 +3792,11 @@ const itemsHandler = async (c: any) => {
       IsPlayable: isVideo || isAudio,
       PlayAccess: "Full",
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
       AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
-      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+      AlbumArtists: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
       MediaSources: (isVideo || isAudio)
         ? [buildMediaSource(row, parsed, isVideo, isAudio, container, itemUuid)]
         : undefined,
@@ -4167,7 +4184,7 @@ const handleShowsEpisodes = async (c: any) => {
       PlayAccess: "Full",
       IsPlayable: true,
       Artists: isAudio ? ["Vários Artistas"] : undefined,
-      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios") }] : undefined,
+      ArtistItems: isAudio ? [{ Name: "Vários Artistas", Id: toValidUuid("artist_varios"), Type: "MusicArtist" }] : undefined,
       Album: isAudio ? "Músicas" : undefined,
       AlbumId: isAudio ? toValidUuid("album_view_musicas") : undefined,
       AlbumArtist: isAudio ? "Vários Artistas" : undefined,
@@ -4338,7 +4355,7 @@ app.get("/Persons/:name", async (c) => {
   const name = decodeURIComponent(c.req.param("name"));
   return c.json({
     Name: name,
-    Id: `person_${encodeURIComponent(name)}`,
+    Id: toValidUuid(`person_${encodeURIComponent(name)}`),
     Type: "Person",
     ServerId: SERVER_ID,
   });

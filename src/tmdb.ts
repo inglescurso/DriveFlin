@@ -135,6 +135,24 @@ export async function searchTmdb(
   return null;
 }
 
+// O SDK oficial dos clientes (Kotlin/Swift/TS) tipa `Id` de BaseItemPerson e de
+// BaseItemDto como UUID não-nulo. Um id textual como "person_123" faz a desserialização
+// lançar SerializationException e derruba a linha inteira no cliente, então derivamos
+// sempre um UUID determinístico de 32 hexadecimais a partir da chave textual.
+export function toDeterministicUuid(seed: string | number | null | undefined): string {
+  const s = String(seed ?? "");
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x61c88647, h4 = 0x9e3779b9;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822507);
+    h4 = Math.imul(h4 ^ ch, 3266489909);
+  }
+  const toHex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+  return (toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4)).toLowerCase();
+}
+
 export interface TmdbFullDetails {
   id: number;
   title: string;
@@ -168,7 +186,7 @@ export async function getTmdbDetails(
 
     const cast = (data.credits?.cast || []).slice(0, 10).map((c: any) => ({
       Name: c.name,
-      Id: `person_${c.id}`,
+      Id: toDeterministicUuid(`person_${c.id}`),
       Role: c.character || "Actor",
       Type: "Actor",
       PrimaryImageTag: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : undefined,
@@ -179,7 +197,7 @@ export async function getTmdbDetails(
       .slice(0, 5)
       .map((c: any) => ({
         Name: c.name,
-        Id: `person_${c.id}`,
+        Id: toDeterministicUuid(`person_${c.id}`),
         Role: c.job,
         Type: c.job === "Director" ? "Director" : "Writer",
       }));
@@ -193,7 +211,7 @@ export async function getTmdbDetails(
       people: [...cast, ...crew],
       studios: (data.production_companies || []).slice(0, 3).map((c: any) => ({
         Name: c.name,
-        Id: `studio_${c.id}`,
+        Id: toDeterministicUuid(`studio_${c.id}`),
       })),
       voteAverage: data.vote_average || 0,
       releaseDate: data.release_date || data.first_air_date || "",
