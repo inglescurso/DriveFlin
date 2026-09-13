@@ -7,10 +7,10 @@ export class GoogleDrive {
   private tokenExpiresAt: number = 0;
 
   constructor(env: any) {
-    this.clientId = env.GDRIVE_CLIENT_ID;
-    this.clientSecret = env.GDRIVE_CLIENT_SECRET;
-    this.refreshToken = env.GDRIVE_REFRESH_TOKEN;
-    this.teamDriveId = env.GDRIVE_TEAM_DRIVE_ID;
+    this.clientId = (env.GDRIVE_CLIENT_ID || '').trim();
+    this.clientSecret = (env.GDRIVE_CLIENT_SECRET || '').trim();
+    this.refreshToken = (env.GDRIVE_REFRESH_TOKEN || '').trim();
+    this.teamDriveId = (env.GDRIVE_TEAM_DRIVE_ID || '').trim();
   }
 
   async getAccessToken(): Promise<string> {
