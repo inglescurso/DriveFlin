@@ -66,6 +66,33 @@ async function syncSeriesFolder(env: any, gdrive: any, rc: any, libraryId: strin
   }
 }
 
+// Sync a single movie folder directly into the DB (with recursion)
+async function syncMovieFolder(env: any, gdrive: any, rc: any, libraryId: string, folderId: string, seenIds: string[], depth: number = 0) {
+  if (depth > 3) return; // Prevent infinite recursion or API limits
+  const list: any = await gdrive.listFolder(folderId);
+  for (const item of (list.files || [])) {
+    try {
+      if ((item.shortcutDetails?.targetMimeType || item.mimeType) === 'application/vnd.google-apps.folder') {
+        await syncMovieFolder(env, gdrive, rc, libraryId, (item.shortcutDetails?.targetId || item.id), seenIds, depth + 1);
+      } else {
+        let name = item.name;
+        try { name = await rc.decryptFileName(item.name); } catch(e) {}
+        if (!name.match(/\.(mp4|mkv|avi|webm|m4v|mov|wmv)$/i)) continue;
+        const rowId = `movie_${(item.shortcutDetails?.targetId || item.id)}`;
+        seenIds.push(rowId);
+        
+        await env.DB.prepare(`
+          INSERT INTO Items (Id, ParentId, LibraryId, Type, Name, FileId, EncryptedName, Size, Uuid)
+          VALUES (?, ?, ?, 'Movie', ?, ?, ?, ?, ?)
+          ON CONFLICT(Id) DO UPDATE SET Name = CASE WHEN Items.TmdbId IS NULL THEN excluded.Name ELSE Items.Name END, Size = excluded.Size, FileId = excluded.FileId, EncryptedName = excluded.EncryptedName, Uuid = excluded.Uuid
+        `).bind(rowId, libraryId, libraryId, name, (item.shortcutDetails?.targetId || item.id), item.name, item.size || 0, toValidUuid(rowId)).run();
+      }
+    } catch (err) {
+      console.error(`Error syncing movie item:`, err);
+    }
+  }
+}
+
 export async function runSync(env: any) {
   const gdrive = new GoogleDrive(env);
   const rc = new Cipher('base32');
@@ -112,40 +139,7 @@ export async function runSync(env: any) {
           });
         }
       } else if (isMovieLib) {
-        for (const item of topList.files) {
-          try {
-            if ((item.shortcutDetails?.targetMimeType || item.mimeType) === 'application/vnd.google-apps.folder') {
-              const subFiles: any = await gdrive.listFolder((item.shortcutDetails?.targetId || item.id));
-              for (const sub of (subFiles.files || [])) {
-                let name = sub.name;
-                try { name = await rc.decryptFileName(sub.name); } catch(e) {}
-                if (!name.match(/\.(mp4|mkv|avi|webm|m4v|mov|wmv)$/i)) continue;
-                const rowId = `movie_${(sub.shortcutDetails?.targetId || sub.id)}`;
-                seenIds.push(rowId);
-                
-                await env.DB.prepare(`
-                  INSERT INTO Items (Id, ParentId, LibraryId, Type, Name, FileId, EncryptedName, Size, Uuid)
-                  VALUES (?, ?, ?, 'Movie', ?, ?, ?, ?, ?)
-                  ON CONFLICT(Id) DO UPDATE SET Name = CASE WHEN Items.TmdbId IS NULL THEN excluded.Name ELSE Items.Name END, Size = excluded.Size, FileId = excluded.FileId, EncryptedName = excluded.EncryptedName, Uuid = excluded.Uuid
-                `).bind(rowId, libraryId, libraryId, name, (sub.shortcutDetails?.targetId || sub.id), sub.name, sub.size || 0, toValidUuid(rowId)).run();
-              }
-            } else {
-              let name = item.name;
-              try { name = await rc.decryptFileName(item.name); } catch(e) {}
-              if (!name.match(/\.(mp4|mkv|avi|webm|m4v|mov|wmv)$/i)) continue;
-              const rowId = `movie_${(item.shortcutDetails?.targetId || item.id)}`;
-              seenIds.push(rowId);
-              
-              await env.DB.prepare(`
-                INSERT INTO Items (Id, ParentId, LibraryId, Type, Name, FileId, EncryptedName, Size, Uuid)
-                VALUES (?, ?, ?, 'Movie', ?, ?, ?, ?, ?)
-                ON CONFLICT(Id) DO UPDATE SET Name = CASE WHEN Items.TmdbId IS NULL THEN excluded.Name ELSE Items.Name END, Size = excluded.Size, FileId = excluded.FileId, EncryptedName = excluded.EncryptedName, Uuid = excluded.Uuid
-              `).bind(rowId, libraryId, libraryId, name, (item.shortcutDetails?.targetId || item.id), item.name, item.size || 0, toValidUuid(rowId)).run();
-            }
-          } catch (err) {
-            console.error(`Error syncing movie item:`, err);
-          }
-        }
+        await syncMovieFolder(env, gdrive, rc, libraryId, libraryFolderId, seenIds);
       } else if (isMusicLib) {
         for (const item of topList.files) {
           try {
