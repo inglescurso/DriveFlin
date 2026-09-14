@@ -1,11 +1,11 @@
-﻿{
+{
   "name": "driveflin",
   "version": "1.0.0",
   "description": "Serverless Jellyfin Media Server running on Cloudflare Workers and Google Drive",
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy --keep-vars"
   },
   "keywords": [
     "jellyfin",

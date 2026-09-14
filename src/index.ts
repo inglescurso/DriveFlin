@@ -3265,10 +3265,12 @@ const imageHandler = async (c: any) => {
   // 2. Library Cover
   const lib: any = await resolveLibrary(c.env.DB, itemId);
   if (lib) {
-    if (lib.PrimaryImageFileId) {
-      return serveImageOrProxy(c, lib.PrimaryImageFileId, lib.Name, isBackdrop);
-    }
-    return serveImageOrProxy(c, null, lib.Name || itemId, isBackdrop);
+    // Respect the image type requested by Jellyfin Web. A backdrop may fall
+    // back to the cover, but a Primary request must never return a backdrop.
+    const libraryImage = isBackdrop
+      ? (lib.BackdropImageFileId || lib.PrimaryImageFileId)
+      : lib.PrimaryImageFileId;
+    return serveImageOrProxy(c, libraryImage, lib.Name || itemId, isBackdrop);
   }
 
   // 2.1 Person Images
@@ -3418,20 +3420,30 @@ const handleImageList = async (c: any) => {
   const itemId = c.req.param("itemId");
   const lib: any = await resolveLibrary(c.env.DB, itemId);
   if (lib) {
+    const images: any[] = [];
     if (lib.PrimaryImageFileId) {
-      return c.json([
-        {
-          ImageType: "Primary",
-          ImageIndex: 0,
-          ImageTag: "cached",
-          Path: lib.PrimaryImageFileId,
-          Height: 600,
-          Width: 400,
-          Size: 100000,
-        },
-      ]);
+      images.push({
+        ImageType: "Primary",
+        ImageIndex: 0,
+        ImageTag: getImageTag(lib.PrimaryImageFileId),
+        Path: lib.PrimaryImageFileId,
+        Height: 600,
+        Width: 400,
+        Size: 100000,
+      });
     }
-    return c.json([]);
+    if (lib.BackdropImageFileId) {
+      images.push({
+        ImageType: "Backdrop",
+        ImageIndex: 0,
+        ImageTag: getImageTag(lib.BackdropImageFileId),
+        Path: lib.BackdropImageFileId,
+        Height: 720,
+        Width: 1280,
+        Size: 100000,
+      });
+    }
+    return c.json(images);
   }
   const item: any = await resolveItem(c.env.DB, itemId);
   if (!item) return c.json([]);
@@ -4965,8 +4977,11 @@ const handleImageUpload = async (c: any) => {
     // Id interno "view_nome". Resolver primeiro evita UPDATE em zero linhas.
     const library = await resolveLibrary(c.env.DB, itemId);
     if (library) {
-      // Save as both Primary and Backdrop so the Web can show both poster and header image
-      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ?, BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, imageValue, library.Id).run();
+      if (imageType.startsWith("backdrop")) {
+        await c.env.DB.prepare("UPDATE Libraries SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, library.Id).run();
+      } else {
+        await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, library.Id).run();
+      }
     } else {
       if (imageType.startsWith("backdrop")) {
         await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
@@ -4989,7 +5004,11 @@ const handleImageDelete = async (c: any) => {
   const imageType = (c.req.param("imageType") || "primary").toLowerCase();
   const library = await resolveLibrary(c.env.DB, itemId);
   if (library) {
-    await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = NULL WHERE Id = ?").bind(library.Id).run();
+    if (imageType.startsWith("backdrop")) {
+      await c.env.DB.prepare("UPDATE Libraries SET BackdropImageFileId = NULL WHERE Id = ?").bind(library.Id).run();
+    } else {
+      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = NULL WHERE Id = ?").bind(library.Id).run();
+    }
   } else {
     if (imageType.startsWith("backdrop")) {
       await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = NULL WHERE Id = ?").bind(itemId).run();

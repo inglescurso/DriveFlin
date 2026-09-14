@@ -8,17 +8,13 @@ directory = "public"
 # ─────────────────────────────────────────────────────────────────────────────
 # CAMPOS EXIBIDOS NO MOMENTO DA INSTALAÇÃO (Cloudflare Workers & Pages).
 #
-# IMPORTANTE: Estas variáveis aparecem como campos no painel da Cloudflare
-# durante o primeiro deploy. Deixe os valores VAZIOS ("") para preencher
-# depois em Settings > Variables and Secrets do seu Worker.
+# Estes oito campos aparecem no painel da Cloudflare durante a instalação.
+# Eles permanecem aqui para que um novo usuário consiga fazer o setup.
 #
-# ATENÇÃO: Em deploys subsequentes via GitHub Actions ou wrangler deploy,
-# valores vazios SOBRESCREVEM as variáveis que você configurou no painel.
-# Para evitar isso, remova este bloco [vars] após o primeiro deploy,
-# ou use o botão "Sync fork" sem redeploy automático.
-#
-# Valores vazios NÃO quebram nada — o DriveFlin detecta a ausência e usa
-# as credenciais de fábrica embutidas no código (funcionais para testes).
+# Deploys de manutenção devem usar "npm run deploy", que executa Wrangler
+# com --keep-vars e preserva os valores já preenchidos no painel. Não remova
+# este bloco e não use "wrangler deploy" sem --keep-vars em uma instalação
+# que tenha variáveis configuradas diretamente no painel.
 # ─────────────────────────────────────────────────────────────────────────────
 [vars]
 GDRIVE_CLIENT_ID     = ""
