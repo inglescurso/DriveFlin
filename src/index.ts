@@ -3639,9 +3639,15 @@ app.post("/Items/:itemId/RemoteImages/Download", async (c) => {
       await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageUrl, itemId).run();
     } else {
       if (type.toLowerCase().includes("backdrop")) {
-        await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageUrl, itemId).run();
+        const item = await resolveItem(c.env.DB, itemId);
+        if (item) {
+          await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageUrl, item.Id).run();
+        }
       } else {
-        await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageUrl, itemId).run();
+        const item = await resolveItem(c.env.DB, itemId);
+        if (item) {
+          await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageUrl, item.Id).run();
+        }
       }
     }
   }
@@ -5068,10 +5074,13 @@ const handleImageUpload = async (c: any) => {
         await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, library.Id).run();
       }
     } else {
-      if (imageType.startsWith("backdrop")) {
-        await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
-      } else {
-        await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
+      const item = await resolveItem(c.env.DB, itemId);
+      if (item) {
+        if (imageType.startsWith("backdrop")) {
+          await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, item.Id).run();
+        } else {
+          await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, item.Id).run();
+        }
       }
     }
     return new Response(null, { status: 204 });
@@ -5095,10 +5104,13 @@ const handleImageDelete = async (c: any) => {
       await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = NULL WHERE Id = ?").bind(library.Id).run();
     }
   } else {
-    if (imageType.startsWith("backdrop")) {
-      await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = NULL WHERE Id = ?").bind(itemId).run();
-    } else {
-      await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = NULL WHERE Id = ?").bind(itemId).run();
+    const item = await resolveItem(c.env.DB, itemId);
+    if (item) {
+      if (imageType.startsWith("backdrop")) {
+        await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = NULL WHERE Id = ?").bind(item.Id).run();
+      } else {
+        await c.env.DB.prepare("UPDATE Items SET PrimaryImageFileId = NULL WHERE Id = ?").bind(item.Id).run();
+      }
     }
   }
   return new Response(null, { status: 204 });
