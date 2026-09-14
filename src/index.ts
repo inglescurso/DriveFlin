@@ -1255,6 +1255,57 @@ app.post("/users/:userId", async (c) => {
   }
 });
 
+
+app.post("/Users", async (c) => {
+  try {
+    const userId = c.req.query("userId");
+    const validId = toValidUuid(userId);
+    const body = await c.req.json();
+    
+    await c.env.DB.prepare("UPDATE Users SET Name = ? WHERE Id = ? OR Id = ?")
+      .bind(body.Name, userId, validId)
+      .run();
+    
+    return c.body(null, 204);
+  } catch (e) {
+    console.error(e);
+    return c.body(null, 500);
+  }
+});
+
+app.post("/Users/:userId", async (c) => {
+  try {
+    const rawId = c.req.param("userId");
+    const userId = toValidUuid(rawId);
+    const body = await c.req.json();
+    
+    await c.env.DB.prepare("UPDATE Users SET Name = ? WHERE Id = ? OR Id = ?")
+      .bind(body.Name, rawId, userId)
+      .run();
+    
+    return c.body(null, 204);
+  } catch (e) {
+    console.error(e);
+    return c.body(null, 500);
+  }
+});
+app.post("/users/:userId", async (c) => {
+  try {
+    const rawId = c.req.param("userId");
+    const userId = toValidUuid(rawId);
+    const body = await c.req.json();
+    
+    await c.env.DB.prepare("UPDATE Users SET Name = ? WHERE Id = ? OR Id = ?")
+      .bind(body.Name, rawId, userId)
+      .run();
+    
+    return c.body(null, 204);
+  } catch (e) {
+    console.error(e);
+    return c.body(null, 500);
+  }
+});
+
 app.get("/Users/:userId", handleGetUserById);
 app.get("/users/:userId", handleGetUserById);
 
