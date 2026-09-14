@@ -5,35 +5,11 @@ compatibility_date = "2024-04-05"
 [assets]
 directory = "public"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Campos exibidos no momento da instalação (Cloudflare / Deploy Button).
-# Deixe em branco para preencher depois em
-# Settings > Variables and Secrets, ou preencha aqui para já subir configurado.
-#
-# IMPORTANTE: valores vazios ("") NÃO quebram nada — o DriveFlin detecta a
-# ausência e cai no comportamento padrão (credenciais de fábrica do projeto e
-# senha de admin "admin"). Preencha apenas o que você tiver em mãos.
-# ─────────────────────────────────────────────────────────────────────────────
-[vars]
-# Obrigatório apenas se você quiser usar suas próprias credenciais Google.
-# Gere em https://generator.driveflin.org (ou em /generator do seu Worker).
-GDRIVE_CLIENT_ID     = ""
-GDRIVE_CLIENT_SECRET = ""
-GDRIVE_REFRESH_TOKEN = ""
-
-# Opcional: ID de um Drive Compartilhado (Shared/Team Drive). Vazio = Meu Drive.
-GDRIVE_TEAM_DRIVE_ID = ""
-
-# Opcional: chave do TheMovieDB para capas e sinopses em português.
-# Já existe uma chave funcional embutida de fábrica.
-TMDB_API_KEY = ""
-
-# Opcional: senha inicial do administrador. Vazio = "admin".
-ADMIN_PASSWORD = ""
-
-# Opcional: apenas se seus arquivos usam Rclone Crypt.
-RCLONE_PASS = ""
-RCLONE_SALT = ""
+# As variáveis de ambiente (GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, etc.)
+# são configuradas pelo usuário no painel Cloudflare após o deploy, em
+# Settings > Variables and Secrets. O bloco [vars] NÃO deve estar presente
+# no wrangler.toml porque valores vazios sobrescrevem as variáveis já
+# configuradas a cada deploy. Consulte o README.md para a lista completa.
 
 [[d1_databases]]
 binding = "DB"
