@@ -67,14 +67,14 @@ export class GoogleDrive {
     // A Shared Drive root is only selected when its ID is explicit.
     // The ordinary "root" remains the user's My Drive root.
     if (folderId === this.teamDriveId && this.teamDriveId) {
-      params.set("q", "'" + this.teamDriveId + "'+in+parents+and+trashed=false");
+      params.set("q", "'" + this.teamDriveId + "' in parents and trashed=false");
       params.set("corpora", "drive");
       params.set("driveId", this.teamDriveId);
     } else if (folderId !== "root") {
-      params.set("q", "'" + folderId + "'+in+parents+and+trashed=false");
+      params.set("q", "'" + folderId + "' in parents and trashed=false");
       params.set("corpora", "allDrives");
     } else {
-      params.set("q", "'root'+in+parents+and+trashed=false");
+      params.set("q", "'root' in parents and trashed=false");
     }
     let urlBase = "https://www.googleapis.com/drive/v3/files?" + params.toString();
 
@@ -93,7 +93,7 @@ export class GoogleDrive {
       if (!res.ok && folderId === 'root' && !pageToken) {
         const fallback = new URLSearchParams({
           pageSize: "1000",
-          q: "'root'+in+parents+and+trashed=false",
+          q: "'root' in parents and trashed=false",
           fields,
           includeItemsFromAllDrives: "true",
           supportsAllDrives: "true",

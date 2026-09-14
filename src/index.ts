@@ -1862,9 +1862,9 @@ app.get("/DebugDrive", async (c) => {
     const token = await gdrive.getAccessToken();
     let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails)&includeItemsFromAllDrives=true&supportsAllDrives=true`;
     if (gdrive.teamDriveId && gdrive.teamDriveId.trim() !== '') {
-      urlBase += `&q='${gdrive.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${gdrive.teamDriveId}`;
+      urlBase += `&q='${gdrive.teamDriveId}'%20in%20parents%20and%20trashed=false&corpora=drive&driveId=${gdrive.teamDriveId}`;
     } else {
-      urlBase += `&q='root'+in+parents+and+trashed=false`;
+      urlBase += `&q='root'%20in%20parents%20and%20trashed=false`;
     }
     const res = await fetch(urlBase, {
       headers: { Authorization: `Bearer ${token}` }
