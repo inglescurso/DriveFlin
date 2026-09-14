@@ -4936,8 +4936,11 @@ const handleImageUpload = async (c: any) => {
       imageValue = `data:${mime};base64,${btoa(binary)}`;
     }
 
-    if (itemId.startsWith("view_")) {
-      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
+    // O Web envia o ItemId da biblioteca como UUID (row.Uuid), não como o
+    // Id interno "view_nome". Resolver primeiro evita UPDATE em zero linhas.
+    const library = await resolveLibrary(c.env.DB, itemId);
+    if (library) {
+      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, library.Id).run();
     } else {
       if (imageType.startsWith("backdrop")) {
         await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
@@ -4958,8 +4961,9 @@ app.post("/Items/:itemId/Images/:imageType/:index", handleImageUpload);
 const handleImageDelete = async (c: any) => {
   const itemId = c.req.param("itemId");
   const imageType = (c.req.param("imageType") || "primary").toLowerCase();
-  if (itemId.startsWith("view_")) {
-    await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = NULL WHERE Id = ?").bind(itemId).run();
+  const library = await resolveLibrary(c.env.DB, itemId);
+  if (library) {
+    await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = NULL WHERE Id = ?").bind(library.Id).run();
   } else {
     if (imageType.startsWith("backdrop")) {
       await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = NULL WHERE Id = ?").bind(itemId).run();
