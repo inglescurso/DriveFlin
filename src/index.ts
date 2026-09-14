@@ -202,6 +202,9 @@ async function ensureSchema(db: D1Database, env?: any) {
       await db.prepare("ALTER TABLE Libraries ADD COLUMN Uuid TEXT").run();
     } catch (e) {}
     try {
+      await db.prepare("ALTER TABLE Libraries ADD COLUMN BackdropImageFileId TEXT").run();
+    } catch (e) {}
+    try {
       await db.prepare("CREATE INDEX IF NOT EXISTS idx_libraries_uuid ON Libraries(Uuid)").run();
     } catch (e) {}
 
@@ -1573,7 +1576,7 @@ const handleVirtualFolders = async (c: any) => {
         RefreshProgress: 0,
         RefreshStatus: "Idle",
         ImageTags: { Primary: getImageTag(row.PrimaryImageFileId) || "cached" },
-        BackdropImageTags: [getImageTag(row.PrimaryImageFileId) || "cached"],
+        BackdropImageTags: row.PrimaryImageFileId ? [getImageTag(row.PrimaryImageFileId) || "cached"] : undefined,
       };
     })
   );
@@ -2907,6 +2910,7 @@ const getItemById = async (c: any, itemId: string) => {
   if (lib) {
     const hasImage = !!lib.PrimaryImageFileId;
     const libUuid = lib.Uuid || toValidUuid(lib.Id);
+    const imgTag = getImageTag(lib.PrimaryImageFileId);
     return {
       Name: lib.Name,
       ServerId: SERVER_ID,
@@ -2915,9 +2919,10 @@ const getItemById = async (c: any, itemId: string) => {
       Type: "CollectionFolder",
       CollectionType: lib.CollectionType || (lib.Name.toLowerCase().includes("filme") ? "movies" : "tvshows"),
       LocationType: "FileSystem",
-      PrimaryImageTag: hasImage ? "cached" : undefined,
-      ImageTags: hasImage ? { Primary: "cached" } : {},
-      BackdropImageTags: undefined,
+      PrimaryImageTag: imgTag || "cached",
+      ImageTags: { Primary: imgTag || "cached" },
+      BackdropImageTags: hasImage ? [imgTag || "cached"] : undefined,
+      PrimaryImageAspectRatio: 1.7777777777777777,
     };
   }
 
@@ -4960,7 +4965,8 @@ const handleImageUpload = async (c: any) => {
     // Id interno "view_nome". Resolver primeiro evita UPDATE em zero linhas.
     const library = await resolveLibrary(c.env.DB, itemId);
     if (library) {
-      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ? WHERE Id = ?").bind(imageValue, library.Id).run();
+      // Save as both Primary and Backdrop so the Web can show both poster and header image
+      await c.env.DB.prepare("UPDATE Libraries SET PrimaryImageFileId = ?, BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, imageValue, library.Id).run();
     } else {
       if (imageType.startsWith("backdrop")) {
         await c.env.DB.prepare("UPDATE Items SET BackdropImageFileId = ? WHERE Id = ?").bind(imageValue, itemId).run();
