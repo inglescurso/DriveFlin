@@ -81,7 +81,7 @@ export const injectScript = `
               }
           }
           if (itemId) {
-            const res = await fetch(`/Items/${itemId}/RemoteImages/Download?ImageUrl=${encodeURIComponent(url)}&Type=Primary`, {
+            const res = await fetch('/Items/' + itemId + '/RemoteImages/Download?ImageUrl=' + encodeURIComponent(url) + '&Type=Primary', {
               method: 'POST',
               headers: {
                 'X-Emby-Token': window.ApiClient.accessToken()
