@@ -67,30 +67,34 @@ async function syncSeriesFolder(env: any, gdrive: any, rc: any, libraryId: strin
 }
 
 // Sync a single movie folder directly into the DB (with recursion)
-async function syncMovieFolder(env: any, gdrive: any, rc: any, libraryId: string, folderId: string, seenIds: string[], depth: number = 0) {
-  if (depth > 3) return; // Prevent infinite recursion or API limits
+async function syncMovieFolder(env: any, gdrive: any, rc: any, libraryId: string, folderId: string, seenIds: string[], depth: number = 0, pending: any[] = []) {
+  if (depth > 3) return;
   const list: any = await gdrive.listFolder(folderId);
   for (const item of (list.files || [])) {
     try {
       if ((item.shortcutDetails?.targetMimeType || item.mimeType) === 'application/vnd.google-apps.folder') {
-        await syncMovieFolder(env, gdrive, rc, libraryId, (item.shortcutDetails?.targetId || item.id), seenIds, depth + 1);
+        await syncMovieFolder(env, gdrive, rc, libraryId, (item.shortcutDetails?.targetId || item.id), seenIds, depth + 1, pending);
       } else {
         let name = item.name;
         try { name = await rc.decryptFileName(item.name); } catch(e) {}
         if (!name.match(/\.(mp4|mkv|avi|webm|m4v|mov|wmv)$/i)) continue;
-        const rowId = `movie_${(item.shortcutDetails?.targetId || item.id)}`;
+        const fileId = item.shortcutDetails?.targetId || item.id;
+        const rowId = `movie_${fileId}`;
         seenIds.push(rowId);
-        
-        await env.DB.prepare(`
+        pending.push(env.DB.prepare(`
           INSERT INTO Items (Id, ParentId, LibraryId, Type, Name, FileId, EncryptedName, Size, Uuid)
           VALUES (?, ?, ?, 'Movie', ?, ?, ?, ?, ?)
           ON CONFLICT(Id) DO UPDATE SET Name = CASE WHEN Items.TmdbId IS NULL THEN excluded.Name ELSE Items.Name END, Size = excluded.Size, FileId = excluded.FileId, EncryptedName = excluded.EncryptedName, Uuid = excluded.Uuid
-        `).bind(rowId, libraryId, libraryId, name, (item.shortcutDetails?.targetId || item.id), item.name, item.size || 0, toValidUuid(rowId)).run();
+        `).bind(rowId, libraryId, libraryId, name, fileId, item.name, item.size || 0, toValidUuid(rowId)));
+        if (pending.length >= 50) {
+          await env.DB.batch(pending.splice(0, pending.length));
+        }
       }
     } catch (err) {
       console.error(`Error syncing movie item:`, err);
     }
   }
+  if (depth === 0 && pending.length) await env.DB.batch(pending.splice(0, pending.length));
 }
 
 export async function runSync(env: any) {
@@ -108,6 +112,9 @@ export async function runSync(env: any) {
       const libraryId = lib.Id;
       const libraryFolderId = lib.FolderId;
       if (!libraryFolderId) continue;
+      // Skip libraries that silently point to "root" when a Shared Drive is
+      // configured  - "root" + teamDriveId = entire Shared Drive, not intended.
+      if (libraryFolderId === "root" && gdrive.teamDriveId) continue;
 
       const isMovieLib = (lib.CollectionType === 'movies') || lib.Name.toLowerCase().includes('filme');
       const isTvLib = (lib.CollectionType === 'tvshows') || lib.Name.toLowerCase().includes('serie');

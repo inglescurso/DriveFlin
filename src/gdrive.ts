@@ -41,12 +41,11 @@ export class GoogleDrive {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to refresh token: ${await response.text()}`);
+      throw new Error('Failed to refresh token: ' + await response.text());
     }
 
     const data: any = await response.json();
     this.accessToken = data.access_token;
-    // Assume token expires in data.expires_in seconds, subtract 60s for safety buffer
     this.tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
     
     return this.accessToken || '';
@@ -57,15 +56,27 @@ export class GoogleDrive {
     const folderId = idMatch ? idMatch[0] : rawFolderId;
 
     const token = await this.getAccessToken();
-    let urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails(targetId,targetMimeType))&includeItemsFromAllDrives=true&supportsAllDrives=true`;
-    
-    if (folderId === 'root' && this.teamDriveId && this.teamDriveId.trim() !== '') {
-      urlBase += `&q='${this.teamDriveId}'+in+parents+and+trashed=false&corpora=drive&driveId=${this.teamDriveId}`;
-    } else if (folderId !== 'root') {
-      urlBase += `&q='${folderId}'+in+parents+and+trashed=false&corpora=allDrives`;
+    const fields = "nextPageToken,files(id,name,mimeType,size,createdTime,driveId,shortcutDetails(targetId,targetMimeType))";
+    const params = new URLSearchParams({
+      pageSize: "1000",
+      fields,
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true",
+    });
+
+    // A Shared Drive root is only selected when its ID is explicit.
+    // The ordinary "root" remains the user's My Drive root.
+    if (folderId === this.teamDriveId && this.teamDriveId) {
+      params.set("q", "'" + this.teamDriveId + "'+in+parents+and+trashed=false");
+      params.set("corpora", "drive");
+      params.set("driveId", this.teamDriveId);
+    } else if (folderId !== "root") {
+      params.set("q", "'" + folderId + "'+in+parents+and+trashed=false");
+      params.set("corpora", "allDrives");
     } else {
-      urlBase += `&q='${folderId}'+in+parents+and+trashed=false`;
+      params.set("q", "'root'+in+parents+and+trashed=false");
     }
+    let urlBase = "https://www.googleapis.com/drive/v3/files?" + params.toString();
 
     let allFiles: any[] = [];
     let pageToken: string | null = null;
@@ -73,22 +84,28 @@ export class GoogleDrive {
 
     do {
       let url = urlBase;
-      if (pageToken) url += `&pageToken=${pageToken}`;
+      if (pageToken) url += "&pageToken=" + pageToken;
       
       let res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: "Bearer " + token }
       });
       
       if (!res.ok && folderId === 'root' && !pageToken) {
-        // Fallback for root if teamDriveId fails
-        urlBase = `https://www.googleapis.com/drive/v3/files?pageSize=1000&q='root'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name,mimeType,size,createdTime,shortcutDetails(targetId,targetMimeType))&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+        const fallback = new URLSearchParams({
+          pageSize: "1000",
+          q: "'root'+in+parents+and+trashed=false",
+          fields,
+          includeItemsFromAllDrives: "true",
+          supportsAllDrives: "true",
+        });
+        urlBase = "https://www.googleapis.com/drive/v3/files?" + fallback.toString();
         res = await fetch(urlBase, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: "Bearer " + token }
         });
       }
 
       if (!res.ok) {
-        throw new Error(`Failed to list folder: ${await res.text()}`);
+        throw new Error("Failed to list folder: " + await res.text());
       }
 
       const data: any = await res.json();
@@ -115,7 +132,7 @@ export class GoogleDrive {
     let initRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "Authorization": "Bearer " + token,
         "Content-Type": "application/json",
         "X-Upload-Content-Type": mimeType
       },
@@ -127,7 +144,7 @@ export class GoogleDrive {
       initRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          "Authorization": "Bearer " + token,
           "Content-Type": "application/json",
           "X-Upload-Content-Type": mimeType
         },
@@ -156,8 +173,8 @@ export class GoogleDrive {
 
   async getFile(fileId: string): Promise<any> {
     const token = await this.getAccessToken();
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents,trashed,shortcutDetails(targetId,targetMimeType)&supportsAllDrives=true`, {
-      headers: { Authorization: `Bearer ${token}` }
+    const res = await fetch("https://www.googleapis.com/drive/v3/files/" + fileId + "?fields=id,name,mimeType,parents,driveId,trashed,shortcutDetails(targetId,targetMimeType)&supportsAllDrives=true", {
+      headers: { Authorization: "Bearer " + token }
     });
     if (!res.ok) return null;
     return await res.json();
@@ -177,7 +194,7 @@ export class GoogleDrive {
     let res = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: "Bearer " + token,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(metadata)
@@ -188,13 +205,13 @@ export class GoogleDrive {
       res = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: "Bearer " + token,
           "Content-Type": "application/json"
         },
         body: JSON.stringify(metadata)
       });
     }
-    if (!res.ok) throw new Error(`Failed to create folder: ${await res.text()}`);
+    if (!res.ok) throw new Error("Failed to create folder: " + await res.text());
     const data: any = await res.json();
     return data.id;
   }

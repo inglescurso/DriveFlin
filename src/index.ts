@@ -1747,6 +1747,26 @@ app.get("/Environment/Drives", async (c) => {
       Type: "NetworkShare",
     },
   ];
+  // List Shared Drives (if any) so the user can select them explicitly
+  try {
+    const gdrive = new GoogleDrive(c.env);
+    const token = await gdrive.getAccessToken();
+    const sdRes = await fetch("https://www.googleapis.com/drive/v3/drives?pageSize=50&fields=drives(id,name)", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    if (sdRes.ok) {
+      const sdData: any = await sdRes.json();
+      if (sdData.drives) {
+        for (const sd of sdData.drives) {
+          drives.push({
+            Name: "🚀 " + sd.name + " (Shared Drive)",
+            Path: sd.id,
+            Type: "NetworkShare",
+          });
+        }
+      }
+    }
+  } catch (e) {}
   try {
     const { results: libs } = await c.env.DB.prepare("SELECT Name, FolderId FROM Libraries").all();
     if (libs && libs.length > 0) {
