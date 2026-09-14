@@ -5,11 +5,30 @@ compatibility_date = "2024-04-05"
 [assets]
 directory = "public"
 
-# As variáveis de ambiente (GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, etc.)
-# são configuradas pelo usuário no painel Cloudflare após o deploy, em
-# Settings > Variables and Secrets. O bloco [vars] NÃO deve estar presente
-# no wrangler.toml porque valores vazios sobrescrevem as variáveis já
-# configuradas a cada deploy. Consulte o README.md para a lista completa.
+# ─────────────────────────────────────────────────────────────────────────────
+# CAMPOS EXIBIDOS NO MOMENTO DA INSTALAÇÃO (Cloudflare Workers & Pages).
+#
+# IMPORTANTE: Estas variáveis aparecem como campos no painel da Cloudflare
+# durante o primeiro deploy. Deixe os valores VAZIOS ("") para preencher
+# depois em Settings > Variables and Secrets do seu Worker.
+#
+# ATENÇÃO: Em deploys subsequentes via GitHub Actions ou wrangler deploy,
+# valores vazios SOBRESCREVEM as variáveis que você configurou no painel.
+# Para evitar isso, remova este bloco [vars] após o primeiro deploy,
+# ou use o botão "Sync fork" sem redeploy automático.
+#
+# Valores vazios NÃO quebram nada — o DriveFlin detecta a ausência e usa
+# as credenciais de fábrica embutidas no código (funcionais para testes).
+# ─────────────────────────────────────────────────────────────────────────────
+[vars]
+GDRIVE_CLIENT_ID     = ""
+GDRIVE_CLIENT_SECRET = ""
+GDRIVE_REFRESH_TOKEN = ""
+GDRIVE_TEAM_DRIVE_ID = ""
+TMDB_API_KEY         = ""
+ADMIN_PASSWORD       = ""
+RCLONE_PASS          = ""
+RCLONE_SALT          = ""
 
 [[d1_databases]]
 binding = "DB"
