@@ -58,5 +58,52 @@ export const injectScript = `
     fetch('/debug_log', { method: 'POST', body: JSON.stringify({ type: 'unhandledrejection', reason: event.reason ? event.reason.toString() : 'null', stack: event.reason ? event.reason.stack : '' }) });
   });
 })();
+
+  window.addEventListener('load', () => {
+    setInterval(() => {
+      const header = document.querySelector('.formDialogHeader');
+      if (header && header.textContent.includes('Imagens') && !document.querySelector('#customUrlUploader')) {
+        const btn = document.createElement('button');
+        btn.id = 'customUrlUploader';
+        btn.className = 'emby-button raised-accent';
+        btn.style.margin = '10px';
+        btn.textContent = 'Upload por URL (DriveFlin)';
+        btn.onclick = async () => {
+          const url = prompt('Digite a URL da imagem:');
+          if (!url) return;
+          // Extract item id from url hash or data attribute
+          const match = window.location.hash.match(/id=([a-f0-9]+)/i) || window.location.hash.match(/\/([a-f0-9]{32})/i);
+          let itemId = match ? match[1] : null;
+          if (!itemId) {
+              const el = document.querySelector('.formDialogContent');
+              if (el) {
+                  // Usually images dialog doesn't have data-itemid, it's in the URL
+              }
+          }
+          if (itemId) {
+            const res = await fetch(`/Items/${itemId}/RemoteImages/Download?ImageUrl=${encodeURIComponent(url)}&Type=Primary`, {
+              method: 'POST',
+              headers: {
+                'X-Emby-Token': window.ApiClient.accessToken()
+              }
+            });
+            if (res.ok) {
+              alert('Imagem atualizada com sucesso!');
+              window.location.reload();
+            } else {
+              alert('Erro: ' + res.status);
+            }
+          } else {
+            alert('Não foi possível determinar o Item ID da URL.');
+          }
+        };
+        const content = document.querySelector('.formDialogContent');
+        if (content) {
+          content.insertBefore(btn, content.firstChild);
+        }
+      }
+    }, 1000);
+  });
+
 </script>
 `;
