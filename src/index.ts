@@ -1604,9 +1604,7 @@ app.post("/Library/VirtualFolders", async (c) => {
     paths = body.LibraryOptions.PathInfos.map((p: any) => p.Path);
   }
   
-  let folderId = paths && paths.length > 0 ? paths[0] : "root";
-  const idMatch = folderId.match(/[-\w]{25,}/);
-  if (idMatch) folderId = idMatch[0];
+  let folderId = extractDriveFolderId(paths && paths.length > 0 ? paths[0] : "root") || "root";
 
   try {
     if (folderId !== "root") {
@@ -1619,7 +1617,20 @@ app.post("/Library/VirtualFolders", async (c) => {
   } catch (e) {}
 
   try {
-    const id = "view_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    // O Jellyfin Web envia em LibraryOptions.ItemId o Id da view que ele acabou de criar
+    // (via POST /Library/VirtualFolders). Antes o DriveFlin derivava o Id de um slug do
+    // nome ("view_" + nome), o que fazia o INSERT OR REPLACE sobrescrever uma biblioteca
+    // já existente com o mesmo nome — origem das "bibliotecas zumbis" ao recriar/renomear.
+    const requestedId: string | undefined =
+      body.LibraryOptions?.ItemId || body.ItemId || c.req.query("itemId") || undefined;
+
+    let id = requestedId || ("view_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_"));
+
+    // Evita colidir com uma biblioteca diferente que já ocupe esse Id (nome duplicado).
+    const clash: any = await c.env.DB.prepare("SELECT Id, Name FROM Libraries WHERE Id = ?").bind(id).first();
+    if (clash && clash.Name !== name) {
+      id = id + "_" + Date.now().toString(36);
+    }
 
     try {
       await c.env.DB.prepare("ALTER TABLE Libraries ADD COLUMN CollectionType TEXT").run();
@@ -1651,16 +1662,49 @@ app.post("/Library/VirtualFolders/Name", async (c) => {
   return c.body(null, 204);
 });
 
+// Remove o prefixo "/" que o DirectoryBrowser adiciona e extrai o ID do Google Drive
+// de variações como "/17uE...", "17uE...", "\\17uE..." ou de um caminho completo.
+function extractDriveFolderId(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const value = String(raw).trim();
+  if (!value || value === "/" || value === "root" || value === "/root") return "root";
+  // Caminhos UNC do Jellyfin: "\\host\share" não têm ID do Drive.
+  if (value.startsWith("\\\\")) return null;
+  const idMatch = value.match(/[-\w]{25,}/);
+  return idMatch ? idMatch[0] : null;
+}
+
+// Adiciona um caminho de mídia a uma biblioteca existente.
+// O Jellyfin Web chama esta rota em POST /Library/VirtualFolders/Paths com
+// { Name, Path, PathInfo } — o corpo pode trazer tanto Path quanto PathInfo.Path,
+// e a query pode trazer ?name=. Lemos todas as variações para não perder o caminho.
 app.post("/Library/VirtualFolders/Paths", async (c) => {
   let body: any = {};
   try { body = await c.req.json(); } catch (e) {}
+
   const name = c.req.query("name") || body.Name || "";
-  let path = c.req.query("path") || body.Path || "";
-  if (name && path) {
-    let folderId = path;
-    const idMatch = folderId.match(/[-\w]{25,}/);
-    if (idMatch) folderId = idMatch[0];
-    await c.env.DB.prepare("UPDATE Libraries SET FolderId = ? WHERE Name = ?").bind(folderId, name).run();
+  const rawPath =
+    c.req.query("path") ||
+    body.Path ||
+    body.PathInfo?.Path ||
+    (body.LibraryOptions?.PathInfos?.[0]?.Path) ||
+    "";
+
+  const folderId = extractDriveFolderId(rawPath);
+
+  if (name && folderId) {
+    // Se a biblioteca não existe, cria — o Jellyfin Web também usa esta rota para
+    // vincular o caminho logo após criar a biblioteca.
+    const existing: any = await c.env.DB.prepare("SELECT Id FROM Libraries WHERE Name = ?").bind(name).first();
+    if (existing) {
+      await c.env.DB.prepare("UPDATE Libraries SET FolderId = ? WHERE Name = ?").bind(folderId, name).run();
+    } else {
+      const id = "view_" + name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      const type = body.LibraryOptions?.CollectionType === "tvshows" ? "tvshows" : "movies";
+      await c.env.DB.prepare(
+        "INSERT OR REPLACE INTO Libraries (Id, Name, FolderId, CollectionType, Uuid) VALUES (?, ?, ?, ?, ?)"
+      ).bind(id, name, folderId, type, toValidUuid(id)).run();
+    }
     try { c.executionCtx?.waitUntil(runSync(c.env)); } catch (e) { runSync(c.env); }
   }
   return c.body(null, 204);
