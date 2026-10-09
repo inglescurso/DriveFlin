@@ -1,0 +1,1 @@
+INSERT OR REPLACE INTO Items (Id, ParentId, LibraryId, Type, Name, FileId, Size, Uuid) VALUES ('movie_test1','lib1','lib1','Movie','Nosferatu (1922).avi','fakefileid',1000,'0123456789abcdef0123456789abcdef');

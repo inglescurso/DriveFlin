@@ -313,7 +313,7 @@ const htmlContent = `<!DOCTYPE html>
       
       <div class="form-group">
         <label for="clientId">Client ID <span style="color: var(--accent);">*</span></label>
-        <input type="text" id="clientId" placeholder="ex: 370045112228-xxxx.apps.googleusercontent.com" oninput="saveInputs(); updateDirectLink();">
+        <input type="text" id="clientId" placeholder="ex: 123456789012-xxxx.apps.googleusercontent.com" oninput="saveInputs(); updateDirectLink();">
       </div>
 
       <div class="form-group">

@@ -1,6 +1,6 @@
 {
   "name": "driveflin",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Serverless Jellyfin Media Server running on Cloudflare Workers and Google Drive",
   "main": "src/index.ts",
   "scripts": {

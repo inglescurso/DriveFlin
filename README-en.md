@@ -180,8 +180,8 @@ Once deployment finishes, add your Google Drive connection and optional settings
    | `GDRIVE_CLIENT_ID` | Secret | Client ID generated in the Google Cloud Console. |
    | `GDRIVE_CLIENT_SECRET` | Secret | Client Secret generated in the Google Cloud Console. |
    | `GDRIVE_REFRESH_TOKEN` | Secret | Refresh Token generated at [generator.driveflin.org](https://generator.driveflin.org). |
-   | `TMDB_API_KEY` | Secret | *(Optional)* Your personal [TheMovieDB](https://www.themoviedb.org/settings/api) API key. DriveFlin already includes a working default key built-in, but you may supply your own. |
-   | `ADMIN_PASSWORD` | Secret | *(Optional)* Admin password. If omitted, defaults to `admin`. |
+   | `TMDB_API_KEY` | Secret | *(Recommended)* Your free [TheMovieDB](https://www.themoviedb.org/settings/api) API key. Without it, posters, overviews and metadata search are disabled (v2 no longer ships a built-in key). |
+   | `ADMIN_PASSWORD` | Secret | *(Strongly recommended)* Initial admin password, used only when the admin user is created. If omitted, it is `admin`: change it on first login, since the server is on the internet. |
    | `GDRIVE_TEAM_DRIVE_ID` | Secret | *(Optional)* Google Shared/Team Drive ID (leave blank if using personal My Drive). |
    | `RCLONE_PASS` | Secret | *(Optional)* Password if your Google Drive files use Rclone Crypt. |
    | `RCLONE_SALT` | Secret | *(Optional)* Salt if your Google Drive files use Rclone Crypt. |
@@ -228,6 +228,19 @@ npx wrangler secret put GDRIVE_REFRESH_TOKEN
 # 6. Deploy Worker
 npx wrangler deploy
 ```
+
+---
+
+## 🔐 What's new in v2 (security & compatibility)
+
+- **Real, Jellyfin-style authentication**: every login gets its own per-device token. All routes require it except those Jellyfin itself serves publicly (public system info, login user list, branding, images, web UI). Tokens are accepted via `Authorization: MediaBrowser ... Token="..."`, `X-Emby-Token` or `?api_key=`.
+- **Hashed passwords (PBKDF2)**; legacy plaintext passwords are upgraded on next login.
+- **Per-user isolation**; dashboard, libraries, backups and the Drive browser are admin-only.
+- **No credentials in the code**: Google Drive and TMDB come only from Worker secrets.
+- **Debug routes removed**; `/setup` and `/sync` require an admin login (HTTP Basic).
+- **Brute-force protection**, accurate container/MIME detection, no fake transcoding, and backups now include users and watch progress.
+
+**Upgrading from v1:** every device must sign in again after deploying (the fixed v1 token is no longer accepted). The ServerId is kept.
 
 ---
 
