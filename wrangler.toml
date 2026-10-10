@@ -9,11 +9,25 @@ keep_vars = true
 directory = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DEPLOY PONTE (temporário): sem os campos de instalação em [vars] e com keep_vars,
-# os valores já preenchidos no painel da Cloudflare são preservados. Na primeira
-# requisição o Worker os copia para o KV (DRIVEFLIN_CONFIG). Depois disto os campos
-# de instalação voltam ao arquivo.
+# CAMPOS EXIBIDOS NO MOMENTO DA INSTALAÇÃO (Cloudflare Workers & Pages).
+#
+# Estes oito campos aparecem no painel da Cloudflare durante a instalação.
+# Eles permanecem aqui para que um novo usuário consiga fazer o setup.
+#
+# Persistência: na primeira requisição depois de preenchidos, os valores são
+# gravados no KV (DRIVEFLIN_CONFIG). Quando um commit/redeploy zerar estes campos,
+# o DriveFlin continua usando o que está salvo no KV. Para trocar um valor,
+# basta preencher o campo de novo. Não remova este bloco.
 # ─────────────────────────────────────────────────────────────────────────────
+[vars]
+GDRIVE_CLIENT_ID     = ""
+GDRIVE_CLIENT_SECRET = ""
+GDRIVE_REFRESH_TOKEN = ""
+GDRIVE_TEAM_DRIVE_ID = ""
+TMDB_API_KEY         = ""
+ADMIN_PASSWORD       = ""
+RCLONE_PASS          = ""
+RCLONE_SALT          = ""
 
 # KV criado automaticamente no primeiro deploy (guarda as variáveis de instalação).
 [[kv_namespaces]]
