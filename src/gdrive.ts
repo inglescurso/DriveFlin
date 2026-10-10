@@ -9,8 +9,8 @@ export class GoogleDrive {
   private tokenExpiresAt: number = 0;
 
   constructor(env: any) {
-    // v2: nenhuma credencial embutida. Configure os secrets do Worker:
-    //   GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN (e opcionalmente GDRIVE_TEAM_DRIVE_ID)
+    // v2: nenhuma credencial embutida. O entrypoint (withConfig) já entrega aqui o env
+    // com os valores salvos no KV via /setup (ou, na falta deles, as variáveis do Worker).
     this.clientId = String(env?.GDRIVE_CLIENT_ID || "").trim();
     this.clientSecret = String(env?.GDRIVE_CLIENT_SECRET || "").trim();
     this.refreshToken = String(env?.GDRIVE_REFRESH_TOKEN || "").trim();
@@ -26,7 +26,7 @@ export class GoogleDrive {
       return this.accessToken;
     }
     if (!this.isConfigured()) {
-      throw new Error("Google Drive não configurado: defina GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET e GDRIVE_REFRESH_TOKEN nos secrets do Worker.");
+      throw new Error("Google Drive não configurado: abra /setup e informe Client ID, Client Secret e Refresh Token.");
     }
 
     // Reaproveita o access token entre requisições do mesmo isolate (evita um refresh por stream).
@@ -64,6 +64,17 @@ export class GoogleDrive {
     tokenCache.set(cacheKey, { token: this.accessToken || '', exp: this.tokenExpiresAt });
 
     return this.accessToken || '';
+  }
+
+  /** Conta do Google em uso (usado pelo "Testar conexão" do /setup). */
+  async whoami(): Promise<string> {
+    const token = await this.getAccessToken();
+    const res = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Drive API respondeu HTTP " + res.status);
+    const data: any = await res.json();
+    return String(data?.user?.emailAddress || "");
   }
 
   async listFolder(rawFolderId: string = 'root') {

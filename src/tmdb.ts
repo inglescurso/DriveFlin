@@ -8,7 +8,7 @@ export interface TmdbResult {
   releaseDate: string;
 }
 
-// v2: sem chave embutida. Configure TMDB_API_KEY como secret do Worker.
+// v2: sem chave embutida. A chave vem do KV (/setup) ou da variável TMDB_API_KEY, via withConfig().
 
 const TMDB_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

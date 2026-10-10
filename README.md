@@ -161,7 +161,7 @@ A instalação é 100% visual pelo navegador, sem necessidade de instalar ferram
    - **Project name:** `driveflin` *(ou o nome que preferir)*.
    - **Deploy command:** `npx wrangler deploy` *(já vem preenchido)*.
    - Clique no botão azul **Deploy**!
-6. A Cloudflare iniciará a compilação, detectará o arquivo `wrangler.toml` na raiz e conectará automaticamente o seu banco `jellyfin_db_prod`!
+6. A Cloudflare iniciará a compilação, detectará o arquivo `wrangler.toml` na raiz e conectará automaticamente o seu banco `jellyfin_db_prod` e criará o KV `DRIVEFLIN_KV` (onde ficam as credenciais)!
 
 > [!NOTE]
 > **E se der erro de banco não encontrado?**  
@@ -169,24 +169,26 @@ A instalação é 100% visual pelo navegador, sem necessidade de instalar ferram
 
 ---
 
-### Passo 4: Configurar as Credenciais e Segredos
-Após a implantação, adicione a sua conexão do Google Drive e personalizações:
+### Passo 4: Informar as Credenciais (tudo em `/setup`, sem mexer em variáveis)
+Nada de secrets no painel da Cloudflare: o DriveFlin guarda a configuração no **Cloudflare KV** (o namespace `DRIVEFLIN_KV` é criado automaticamente no primeiro deploy), que sobrevive a redeploys e ao *Sync fork*.
 
-1. No painel do seu Worker recém-criado (`driveflin`), vá em **Settings** (Configurações) > **Variables and Secrets** (Variáveis e Segredos).
-2. Clique em **Add** (Adicionar) e insira as variáveis necessárias:
+1. Abra `https://driveflin.seu-subdominio.workers.dev/setup` e entre com `admin` / `admin`.
+2. Em **Credenciais**, preencha:
 
-   | Variável / Segredo | Tipo | Descrição |
-   | :--- | :--- | :--- |
-   | `GDRIVE_CLIENT_ID` | Secret | Client ID obtido no Google Cloud Console. |
-   | `GDRIVE_CLIENT_SECRET` | Secret | Client Secret obtido no Google Cloud Console. |
-   | `GDRIVE_REFRESH_TOKEN` | Secret | Refresh Token obtido em [generator.driveflin.org](https://generator.driveflin.org). |
-   | `TMDB_API_KEY` | Secret | *(Recomendado)* Sua chave gratuita do [TheMovieDB](https://www.themoviedb.org/settings/api). Sem ela, capas, sinopses e busca de metadados ficam desativadas (a v2 não traz mais chave embutida). |
-   | `ADMIN_PASSWORD` | Secret | *(Fortemente recomendado)* Senha inicial do admin, usada só na criação do usuário. Se omitido, a senha inicial é `admin`: troque-a no primeiro acesso, pois o servidor fica na internet. |
-   | `GDRIVE_TEAM_DRIVE_ID` | Secret | *(Opcional)* ID do Drive Compartilhado (Shared/Team Drive). |
-   | `RCLONE_PASS` | Secret | *(Opcional)* Senha caso seus arquivos usem Rclone Crypt. |
-   | `RCLONE_SALT` | Secret | *(Opcional)* Salt caso seus arquivos usem Rclone Crypt. |
+   | Campo | Obrigatório | Descrição |
+   | :--- | :---: | :--- |
+   | Google Client ID | ✅ | Obtido em [generator.driveflin.org](https://generator.driveflin.org). |
+   | Google Client Secret | ✅ | Idem. |
+   | Google Refresh Token | ✅ | Idem. |
+   | TMDB API Key | recomendado | Chave gratuita do [TheMovieDB](https://www.themoviedb.org/settings/api). Sem ela, capas, sinopses e busca de metadados ficam desativadas. |
+   | Team Drive ID | opcional | ID do Drive Compartilhado (Shared/Team Drive). |
+   | rclone crypt password / salt | opcional | Só se os seus arquivos usam Rclone Crypt. |
 
-3. Clique em **Save and Deploy** (Salvar e implantar).
+3. Clique em **Salvar** e depois em **Testar conexão**. Os valores nunca voltam por inteiro na tela.
+4. **Troque a senha do admin** (a página avisa enquanto ela for `admin`): entre no Jellyfin e altere em Perfil > Senha. Depois da troca, a senha nova é a que vale; a `ADMIN_PASSWORD` do `wrangler.toml` só serve para o primeiro acesso.
+
+> [!NOTE]
+> **Prefere variáveis do Worker?** Continua funcionando: `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN`, `GDRIVE_TEAM_DRIVE_ID`, `TMDB_API_KEY`, `RCLONE_PASS` e `RCLONE_SALT` são lidas como alternativa. O valor salvo em `/setup` tem prioridade sobre a variável.
 
 ---
 
@@ -219,14 +221,10 @@ npx wrangler d1 create jellyfin_db_prod
 # 4. Executar o schema inicial
 npx wrangler d1 execute jellyfin_db_prod --remote --file=schema.sql
 
-# 5. Configurar os segredos (incluindo TMDB_API_KEY)
-npx wrangler secret put TMDB_API_KEY
-npx wrangler secret put GDRIVE_CLIENT_ID
-npx wrangler secret put GDRIVE_CLIENT_SECRET
-npx wrangler secret put GDRIVE_REFRESH_TOKEN
-
-# 6. Publicar o Worker
+# 5. Publicar o Worker (o KV DRIVEFLIN_KV é criado automaticamente)
 npx wrangler deploy
+
+# 6. Abrir https://SEU-WORKER/setup (admin / admin) e preencher as credenciais
 ```
 
 ---
@@ -236,9 +234,9 @@ npx wrangler deploy
 - **Login de verdade, como no Jellyfin**: cada login gera um token próprio por dispositivo. Todas as rotas exigem token, exceto as que o Jellyfin também deixa públicas (informações públicas do servidor, lista de usuários do login, branding, imagens e a interface web). O token é aceito no cabeçalho `Authorization: MediaBrowser ... Token="..."`, em `X-Emby-Token` ou em `?api_key=` (usado pelos players e pelo Chromecast).
 - **Senhas com hash (PBKDF2)**: senhas antigas em texto puro são convertidas automaticamente no próximo login.
 - **Usuários comuns isolados**: só veem e alteram os próprios dados; painel, bibliotecas, backups e o navegador do Drive são exclusivos de administradores.
-- **Sem credenciais no código**: Google Drive e TMDB vêm apenas dos secrets do Worker.
+- **Sem credenciais no código**: Google Drive, TMDB e rclone são digitados em `/setup` e ficam no Cloudflare KV (ou, se preferir, em variáveis do Worker).
 - **Rotas de depuração removidas** (`/debug_log`, `/debug_logs`, `/DebugDrive`, `/Debug/ListFolder`, `/internal/*`).
-- **`/setup` e `/sync`** pedem usuário e senha de administrador (HTTP Basic).
+- **`/setup` e `/sync`** pedem usuário e senha de administrador (HTTP Basic). O `/setup` também tem o formulário de credenciais e o botão **Testar conexão**.
 - **Proteção contra força bruta**: 10 tentativas erradas por usuário em 15 minutos bloqueiam novas tentativas temporariamente.
 - **Mídia mais fiel**: o container e o tipo MIME vêm do arquivo real (mkv, avi, mpg, mov...), e o servidor não anuncia mais uma transcodificação que não existe.
 - **Backups** agora incluem usuários e o progresso "continuar assistindo" / favoritos.

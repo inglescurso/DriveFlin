@@ -1,11 +1,13 @@
 // Testes de integração da v2 (autenticação, isolamento, mídia) contra `wrangler dev` local.
 // Não usa Google Drive nem TMDB. Rode num banco D1 local NOVO (o teste cria usuários).
 //
-// 1) Crie um wrangler.test.toml (não versionado) igual ao wrangler.toml, com
-//    database_id fictício e [vars] ADMIN_PASSWORD = "teste-v2".
-// 2) npx wrangler dev -c wrangler.test.toml --local --port 8787 --persist-to .wrangler-test
+// 1) Crie uma pasta de teste (ex.: .kvtest/) com um wrangler.toml igual ao da raiz, mas com
+//    main = "../src/index.ts", directory = "../public", database_id fictício e
+//    ADMIN_PASSWORD = "teste-v2". Usar uma pasta separada evita que um .dev.vars local
+//    injete credenciais reais (os testes de /setup/config esperam "nada configurado").
+// 2) (na pasta de teste) npx wrangler dev --local --port 8787 --persist-to ./state
 // 3) curl http://127.0.0.1:8787/System/Info/Public   (cria as tabelas)
-// 4) npx wrangler d1 execute DB -c wrangler.test.toml --local --persist-to .wrangler-test --file tests/seed-v2.sql
+// 4) npx wrangler d1 execute DB --local --persist-to ./state --file ../tests/seed-v2.sql
 // 5) node tests/integration-v2.mjs http://127.0.0.1:8787 teste-v2
 const BASE = process.argv[2] || "http://127.0.0.1:8787";
 const ADMIN_PW = process.argv[3] || "teste-v2";
@@ -166,7 +168,7 @@ const basic = (u, p) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
   r = await req("GET", "/setup");
   check("/setup pede login", r.status === 401 && /Basic/.test(r.headers.get("www-authenticate") || ""));
   r = await req("GET", "/setup", { headers: { Authorization: basic("admin", ADMIN_PW) } });
-  check("/setup com Basic de admin", r.status === 200 && /DriveFlin Library Setup/.test(r.text));
+  check("/setup com Basic de admin", r.status === 200 && /DriveFlin Setup/.test(r.text));
   r = await req("GET", "/setup", { headers: { Authorization: basic("admin", "errada") } });
   check("/setup com senha errada", r.status === 401);
   const form = "id=lib_xss&name=%3Cscript%3Ealert(1)%3C%2Fscript%3E&folderId=abc";
@@ -206,6 +208,37 @@ const basic = (u, p) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
   const pre = await fetch(BASE + "/Users/Me", { method: "OPTIONS", headers: { Origin: "https://app.example", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "x-emby-token" } });
   const allow = (pre.headers.get("access-control-allow-headers") || "").toLowerCase();
   check("CORS libera X-Emby-Token (Chromecast/apps)", (pre.status === 204 || pre.status === 200) && allow.includes("x-emby-token"), allow);
+
+  // ── Config no KV (/setup/config): salvar, mascarar, limpar, CSRF
+  const AB = { Authorization: basic("admin", ADMIN_PW) };
+  const FORM = { ...AB, "Content-Type": "application/x-www-form-urlencoded", Origin: BASE };
+  r = await req("GET", "/setup/config");
+  check("/setup/config exige login", r.status === 401, String(r.status));
+  r = await req("GET", "/setup/config", { headers: AB });
+  check("/setup/config lista o estado (KV vinculado, nada configurado)", r.status === 200 && r.data.kv === true && r.data.fields.gdriveClientId.configured === false, r.text.slice(0, 200));
+  const SECRET = "SEGREDO-DO-TESTE-1234567890";
+  r = await req("POST", "/setup/config", { headers: { ...FORM, Origin: "https://evil.example" }, body: "tmdbApiKey=" + SECRET });
+  check("/setup/config de outro site é bloqueado (CSRF)", r.status === 403, String(r.status));
+  r = await req("POST", "/setup/config", { headers: FORM, body: "gdriveClientId=cid-teste-1234567890.apps.googleusercontent.com&gdriveClientSecret=csecret-teste-9999&gdriveRefreshToken=1%2F%2Frefresh-teste-abcdef&tmdbApiKey=" + SECRET });
+  check("/setup/config grava no KV", r.status === 303, String(r.status));
+  r = await req("GET", "/setup/config", { headers: AB });
+  check("config salva aparece como origem KV", r.data.fields.tmdbApiKey.configured && r.data.fields.tmdbApiKey.source === "kv" && r.data.fields.gdriveRefreshToken.source === "kv", r.text.slice(0, 300));
+  check("/setup/config nunca devolve segredo inteiro", !r.text.includes(SECRET) && !r.text.includes("csecret-teste-9999") && !r.text.includes("refresh-teste-abcdef"));
+  r = await req("GET", "/setup", { headers: AB });
+  check("/setup (HTML) nunca mostra segredo inteiro", r.status === 200 && !r.text.includes(SECRET) && !r.text.includes("csecret-teste-9999") && !r.text.includes("refresh-teste-abcdef"));
+  r = await req("POST", "/setup/config", { headers: FORM, body: "gdriveClientId=&tmdbApiKey=" });
+  r = await req("GET", "/setup/config", { headers: AB });
+  check("campo em branco mantém o valor salvo", r.data.fields.gdriveClientId.configured === true && r.data.fields.tmdbApiKey.configured === true);
+  r = await req("POST", "/setup/test", { headers: FORM, body: "" });
+  check("Testar conexão usa as credenciais do KV (não diz 'preencha')", r.status === 200 && !/preencha Client ID/.test(r.text) && /Drive: /.test(r.text), r.text.slice(0, 200));
+  r = await req("POST", "/setup/config", { headers: FORM, body: "clear_tmdbApiKey=1&clear_gdriveClientSecret=1" });
+  r = await req("GET", "/setup/config", { headers: AB });
+  check("remover limpa o campo do KV", r.data.fields.tmdbApiKey.configured === false && r.data.fields.gdriveClientSecret.configured === false && r.data.fields.gdriveClientId.configured === true);
+  r = await req("POST", "/setup/test", { headers: FORM, body: "" });
+  check("Testar conexão sem credenciais completas avisa", /preencha Client ID/.test(r.text), r.text.slice(0, 200));
+  r = await req("POST", "/setup/config", { headers: FORM, body: "tmdbApiKey=abc%0Adef" });
+  check("valor com quebra de linha é recusado", r.status === 400, String(r.status));
+  for (const f of ["gdriveClientId", "gdriveRefreshToken"]) await req("POST", "/setup/config", { headers: FORM, body: "clear_" + f + "=1" });
 
   // ── Logout
   r = await req("POST", "/Sessions/Logout", { token: adminTok });
