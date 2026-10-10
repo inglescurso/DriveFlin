@@ -5047,6 +5047,25 @@ async function getOrCreateDriveFolder(gdrive: GoogleDrive, name: string): Promis
   return await gdrive.createFolder(name);
 }
 
+// O Jellyfin (ItemUpdateController/ImageController) recebe a imagem como TEXTO base64,
+// com Content-Type image/*. Por isso o corpo é decodificado antes de salvar. Também aceita
+// data URL (data:image/...;base64,...) e bytes binários crus (ex.: curl --data-binary).
+function imageBytesFromBody(raw: ArrayBuffer): ArrayBuffer {
+  const bytes = new Uint8Array(raw);
+  const isRawImage =
+    (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) || // PNG
+    (bytes[0] === 0xff && bytes[1] === 0xd8) || // JPEG
+    (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) || // GIF
+    (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46); // RIFF (WEBP)
+  if (isRawImage) return raw;
+  const text = new TextDecoder().decode(bytes).trim().replace(/^data:image\/[a-z0-9.+-]+;base64,/i, "").replace(/\s+/g, "");
+  if (!text || !/^[A-Za-z0-9+/]*={0,2}$/.test(text)) return raw;
+  const bin = atob(text);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
 const handleImageUpload = async (c: any) => {
   try {
     const itemId = c.req.param("itemId");
@@ -5073,18 +5092,9 @@ const handleImageUpload = async (c: any) => {
     } else {
       const rawBuffer = await c.req.arrayBuffer();
       if (rawBuffer && rawBuffer.byteLength > 0) {
-        const decoder = new TextDecoder();
-        const textSample = decoder.decode(rawBuffer.slice(0, Math.min(100, rawBuffer.byteLength)));
-        if (textSample.startsWith("data:image/") || textSample.includes(";base64,")) {
-          const fullText = decoder.decode(rawBuffer);
-          const cleanBase64 = fullText.replace(/^data:image\/[a-z]+;base64,/, "").trim();
-          const raw = atob(cleanBase64);
-          const u8 = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
-          buffer = u8.buffer;
-        } else {
-          buffer = rawBuffer;
-        }
+        const header = contentType.split(";")[0].trim().toLowerCase();
+        if (header.startsWith("image/")) mime = header;
+        buffer = imageBytesFromBody(rawBuffer);
       }
     }
 

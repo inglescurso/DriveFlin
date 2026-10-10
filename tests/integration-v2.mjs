@@ -207,6 +207,21 @@ const basic = (u, p) => "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
   const allow = (pre.headers.get("access-control-allow-headers") || "").toLowerCase();
   check("CORS libera X-Emby-Token (Chromecast/apps)", (pre.status === 204 || pre.status === 200) && allow.includes("x-emby-token"), allow);
 
+  // ── Upload de capa de biblioteca: o Jellyfin envia base64 em TEXTO com Content-Type image/*
+  const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const FORM_IMG = { Authorization: basic("admin", ADMIN_PW), "Content-Type": "application/x-www-form-urlencoded", Origin: BASE };
+  r = await req("POST", "/setup/add", { headers: FORM_IMG, body: "id=lib_img&name=Teste+capa&folderId=abc" });
+  r = await req("POST", "/Items/lib_img/Images/Primary", { token: adminTok, headers: { "Content-Type": "image/png" }, body: PNG_B64 });
+  check("upload de capa (base64 em texto) aceito", r.status === 204, String(r.status));
+  let imgRes = await fetch(BASE + "/Items/lib_img/Images/Primary");
+  let imgBytes = new Uint8Array(await imgRes.arrayBuffer());
+  check("capa salva é PNG de verdade (não o texto base64)", imgBytes[0] === 0x89 && imgBytes[1] === 0x50 && imgBytes[2] === 0x4e && imgBytes[3] === 0x47, Array.from(imgBytes.slice(0, 8)).join(","));
+  check("capa servida com Content-Type image/png", (imgRes.headers.get("content-type") || "").startsWith("image/png"), imgRes.headers.get("content-type") || "");
+  r = await req("POST", "/Items/lib_img/Images/Primary", { token: adminTok, headers: { "Content-Type": "image/png" }, body: "data:image/png;base64," + PNG_B64 });
+  imgRes = await fetch(BASE + "/Items/lib_img/Images/Primary");
+  imgBytes = new Uint8Array(await imgRes.arrayBuffer());
+  check("capa com prefixo data: também vira PNG", imgBytes[0] === 0x89 && imgBytes[1] === 0x50, Array.from(imgBytes.slice(0, 8)).join(","));
+
   // ── Logout
   r = await req("POST", "/Sessions/Logout", { token: adminTok });
   check("logout", r.status === 204);
