@@ -5,7 +5,6 @@ import { GoogleDrive } from "./gdrive";
 import { runSync } from "./sync";
 import { cleanMediaTitle, cleanEpisodeTitle, searchTmdb, getTmdbDetails, getTvSeasonEpisodes, searchTmdbRemote, getTmdbImages } from "./tmdb";
 import { createDatabaseBackup, listDatabaseBackups, restoreDatabaseBackup } from "./backup";
-import { withConfig, saveStoredConfig, describeConfig, hasKV, CONFIG_FIELDS, type ConfigField } from "./config";
 import {
   extractAuth,
   extractBasic,
@@ -40,10 +39,6 @@ type Bindings = {
   BRANDING_LOGO_FILE_ID?: string;
   PASSWORD_HASH_ITERATIONS?: string;
   DB: D1Database;
-  /** Config persistente (Drive, TMDB, rclone) editada em /setup. Ver src/config.ts. */
-  DRIVEFLIN_KV?: KVNamespace;
-  /** Preenchido por withConfig(): de onde veio cada valor ("kv" | "env" | "none"). */
-  CONFIG_SOURCES?: Record<string, "kv" | "env" | "none">;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: { auth: SessionUser | null } }>();
@@ -589,61 +584,14 @@ function escapeHtml(v: any): string {
   return String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
 }
 
-// Dashboard de Setup (login de administrador via HTTP Basic)
-// Configuração do Drive/TMDB/rclone fica no KV (DRIVEFLIN_KV); veja src/config.ts.
-const CONFIG_FORM: { field: ConfigField; label: string; hint: string; secret: boolean }[] = [
-  { field: "gdriveClientId", label: "Google Client ID", hint: "gerado em generator.driveflin.org", secret: false },
-  { field: "gdriveClientSecret", label: "Google Client Secret", hint: "gerado em generator.driveflin.org", secret: true },
-  { field: "gdriveRefreshToken", label: "Google Refresh Token", hint: "gerado em generator.driveflin.org", secret: true },
-  { field: "gdriveTeamDriveId", label: "Team Drive ID (opcional)", hint: "só para Drives compartilhados", secret: false },
-  { field: "tmdbApiKey", label: "TMDB API Key (opcional)", hint: "capas e sinopses (themoviedb.org)", secret: true },
-  { field: "rclonePass", label: "rclone crypt password (opcional)", hint: "só se o Drive usa rclone crypt", secret: true },
-  { field: "rcloneSalt", label: "rclone crypt salt (opcional)", hint: "password2 do rclone", secret: true },
-];
-const SOURCE_LABEL: Record<string, string> = { kv: "salvo no KV", env: "variável do Worker", none: "não configurado" };
-
-async function renderSetup(c: any, flash?: { ok: boolean; text: string }, status = 200) {
+// Dashboard de Setup Simples (login de administrador via HTTP Basic)
+app.get("/setup", async (c) => {
   const { results } = await c.env.DB.prepare("SELECT * FROM Libraries").all();
-  const cfg = describeConfig(c.env);
-  const kvOk = hasKV(c.env);
-  const adminRow: any = await c.env.DB.prepare("SELECT Password FROM Users WHERE Id = ? OR Name = 'admin' LIMIT 1").bind(DEFAULT_ADMIN_ID).first();
-  const defaultPw = adminRow ? (await verifyPassword(adminRow.Password, "admin")).ok : false;
-  const saved = new URL(c.req.url).searchParams.get("ok") === "saved";
-  if (saved && !flash) flash = { ok: true, text: "Configuração salva." };
-
-  let html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DriveFlin Setup</title><style>
-  body{font-family:sans-serif;padding:20px;background:#141414;color:#fff;max-width:960px;margin:auto}
-  table{width:100%;border-collapse:collapse;margin-bottom:20px}th,td{border:1px solid #333;padding:10px;text-align:left}
-  input[type=text],input[type=password]{padding:6px;width:100%;box-sizing:border-box;background:#222;color:#fff;border:1px solid #444}
-  button{padding:8px 15px;background:#e50914;color:white;border:none;cursor:pointer}
-  .alert{padding:12px;margin:12px 0;border-radius:4px}.warn{background:#7a4b00}.err{background:#7a0010}.good{background:#0b5d2a}
-  small{color:#aaa}.tag{font-size:12px;padding:2px 6px;border-radius:3px;background:#333}
-  </style></head><body><h1>DriveFlin Setup</h1>`;
-  if (flash) html += `<div class="alert ${flash.ok ? "good" : "err"}">${escapeHtml(flash.text)}</div>`;
-  if (defaultPw) {
-    html += `<div class="alert warn"><b>Troque a senha do admin.</b> Ela ainda é a padrão (<code>admin</code>). Entre no Jellyfin com este usuário e altere em Perfil &rarr; Senha.</div>`;
-  }
-  if (!kvOk) {
-    html += `<div class="alert err">O KV <code>DRIVEFLIN_KV</code> não está vinculado a este Worker, então não é possível salvar as credenciais por aqui. Vincule um namespace KV com o nome <code>DRIVEFLIN_KV</code> (Settings &rarr; Bindings) ou use variáveis do Worker.</div>`;
-  }
-
-  html += `<h2>Credenciais</h2>
-    <form method="POST" action="/setup/config" autocomplete="off"><table>
-    <tr><th>Campo</th><th>Valor</th><th>Origem</th><th>Remover</th></tr>`;
-  for (const f of CONFIG_FORM) {
-    const st = cfg[f.field];
-    const ph = st.configured ? st.masked + " (deixe em branco para manter)" : "não configurado";
-    html += `<tr><td>${escapeHtml(f.label)}<br><small>${escapeHtml(f.hint)}</small></td>
-      <td><input type="${f.secret ? "password" : "text"}" name="${f.field}" placeholder="${escapeHtml(ph)}" autocomplete="off" spellcheck="false"/></td>
-      <td><span class="tag">${escapeHtml(SOURCE_LABEL[st.source] || st.source)}</span></td>
-      <td>${st.source === "kv" ? `<input type="checkbox" name="clear_${f.field}" value="1"/>` : ""}</td></tr>`;
-  }
-  html += `</table><button type="submit"${kvOk ? "" : " disabled"}>Salvar</button></form>
-    <form method="POST" action="/setup/test" style="margin-top:10px"><button type="submit">Testar conexão (Drive e TMDB)</button></form>
-    <p><small>Os valores ficam no Cloudflare KV, nunca voltam por inteiro nesta tela e sobrevivem a redeploys. Mudanças podem levar até cerca de 1 minuto para valer em todas as regiões.</small></p>`;
-
-  html += `<h2>Bibliotecas</h2><table>
+  let html = `<html><head><title>DriveFlin Setup</title><style>body{font-family:sans-serif;padding:20px;background:#141414;color:#fff;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}th,td{border:1px solid #333;padding:10px;text-align:left;}input{padding:5px;}button{padding:8px 15px;background:#e50914;color:white;border:none;cursor:pointer;}</style></head><body>
+    <h1>DriveFlin Library Setup</h1>
+    <table>
       <tr><th>ID</th><th>Name</th><th>Google Drive Folder ID</th><th>Action</th></tr>`;
+
   results.forEach((lib: any) => {
     html += `<tr>
       <form method="POST" action="/setup/delete">
@@ -651,8 +599,9 @@ async function renderSetup(c: any, flash?: { ok: boolean; text: string }, status
       <td><input type="hidden" name="id" value="${escapeHtml(lib.Id)}"/><button type="submit">Delete</button></td>
       </form></tr>`;
   });
+
   html += `</table>
-    <h3>Add New Library</h3>
+    <h2>Add New Library</h2>
     <form method="POST" action="/setup/add">
       <input type="text" name="id" placeholder="ID (e.g. view_filmes_acao)" required />
       <input type="text" name="name" placeholder="Name (e.g. Filmes de Ação)" required />
@@ -662,68 +611,7 @@ async function renderSetup(c: any, flash?: { ok: boolean; text: string }, status
     <br/><br/>
     <form method="POST" action="/sync"><button type="submit">Run Sync Now</button></form>
     </body></html>`;
-  return c.html(html, status);
-}
-
-app.get("/setup", (c) => renderSetup(c));
-
-// JSON só com valores mascarados (para conferência/automação; exige login admin).
-app.get("/setup/config", (c) => c.json({ kv: hasKV(c.env), fields: describeConfig(c.env) }));
-
-app.post("/setup/config", async (c) => {
-  const body = await c.req.parseBody();
-  const patch: Partial<Record<ConfigField, string | null>> = {};
-  for (const field of Object.keys(CONFIG_FIELDS) as ConfigField[]) {
-    if (body[`clear_${field}`]) {
-      patch[field] = null;
-      continue;
-    }
-    const v = typeof body[field] === "string" ? (body[field] as string).trim() : "";
-    if (!v) continue;
-    if (v.length > 2000 || /[\u0000-\u001f\u007f]/.test(v)) {
-      return renderSetup(c, { ok: false, text: "Valor inválido em " + field + "." }, 400);
-    }
-    patch[field] = v;
-  }
-  try {
-    await saveStoredConfig(c.env, patch);
-  } catch (e: any) {
-    console.error("[setup] falha ao salvar config:", e?.message || e);
-    return renderSetup(c, { ok: false, text: "Não foi possível salvar: " + (e?.message || "erro no KV") }, 500);
-  }
-  return c.redirect("/setup?ok=saved", 303);
-});
-
-app.post("/setup/test", async (c) => {
-  const lines: string[] = [];
-  let ok = true;
-  const gdrive = new GoogleDrive(c.env);
-  if (!gdrive.isConfigured()) {
-    ok = false;
-    lines.push("Drive: preencha Client ID, Client Secret e Refresh Token.");
-  } else {
-    try {
-      const who = await gdrive.whoami();
-      lines.push("Drive: conexão OK" + (who ? " (" + who + ")" : "") + ".");
-    } catch (e: any) {
-      ok = false;
-      lines.push("Drive: falhou — " + String(e?.message || e).slice(0, 160) + ". Confira Client ID/Secret e se o Refresh Token não foi revogado.");
-    }
-  }
-  const tmdbKey = String(c.env.TMDB_API_KEY || "");
-  if (!tmdbKey) {
-    lines.push("TMDB: sem chave (opcional; sem ela não há capas/sinopses automáticas).");
-  } else {
-    try {
-      const r = await fetch("https://api.themoviedb.org/3/configuration?api_key=" + encodeURIComponent(tmdbKey));
-      if (r.ok) lines.push("TMDB: chave OK.");
-      else { ok = false; lines.push("TMDB: chave recusada (HTTP " + r.status + ")."); }
-    } catch {
-      ok = false;
-      lines.push("TMDB: não foi possível consultar.");
-    }
-  }
-  return renderSetup(c, { ok, text: lines.join(" ") });
+  return c.html(html);
 });
 
 app.post("/setup/add", async (c) => {
@@ -5301,14 +5189,12 @@ async function rewriteMePath(request: Request, env: Bindings): Promise<Request> 
 }
 
 export default {
-  async fetch(request: Request, rawEnv: Bindings, ctx: any) {
-    // Credenciais salvas no KV (via /setup) entram por cima das variáveis do Worker.
-    const env = await withConfig(rawEnv);
+  async fetch(request: Request, env: Bindings, ctx: any) {
     return app.fetch(await rewriteMePath(request, env), env, ctx);
   },
-  async scheduled(event: any, rawEnv: Bindings, ctx: any) {
+  async scheduled(event: any, env: Bindings, ctx: any) {
     try {
-      ctx.waitUntil(withConfig(rawEnv).then((env) => runSync(env)));
+      ctx.waitUntil(runSync(env));
     } catch (e) {
       console.error("Scheduled sync error:", e);
     }

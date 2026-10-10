@@ -2,31 +2,29 @@ name = "driveflin"
 main = "src/index.ts"
 compatibility_date = "2024-04-05"
 
-# Deploys pelo Git/CLI não apagam variáveis criadas no painel da Cloudflare.
-keep_vars = true
-
 [assets]
 directory = "public"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# INSTALAÇÃO MÍNIMA
+# CAMPOS EXIBIDOS NO MOMENTO DA INSTALAÇÃO (Cloudflare Workers & Pages).
 #
-# Faça o deploy e abra  https://SEU-WORKER/setup  (usuário "admin").
-# A senha inicial vem de ADMIN_PASSWORD abaixo ("admin"): ao trocá-la no Jellyfin
-# (Perfil > Senha) a nova senha passa a valer e este valor deixa de ser usado.
+# Estes oito campos aparecem no painel da Cloudflare durante a instalação.
+# Eles permanecem aqui para que um novo usuário consiga fazer o setup.
 #
-# Credenciais do Google Drive, chave do TMDB e dados do rclone NÃO ficam aqui:
-# são digitados em /setup e gravados no KV (binding DRIVEFLIN_KV), que sobrevive a
-# redeploys. Quem preferir pode defini-los como variáveis/secrets do Worker
-# (GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN, GDRIVE_TEAM_DRIVE_ID,
-# TMDB_API_KEY, RCLONE_PASS, RCLONE_SALT); o valor salvo no KV tem prioridade.
+# Deploys de manutenção devem usar "npm run deploy", que executa Wrangler
+# com --keep-vars e preserva os valores já preenchidos no painel. Não remova
+# este bloco e não use "wrangler deploy" sem --keep-vars em uma instalação
+# que tenha variáveis configuradas diretamente no painel.
 # ─────────────────────────────────────────────────────────────────────────────
 [vars]
-ADMIN_PASSWORD = "admin"
-
-# O namespace é criado automaticamente no primeiro deploy pelo Git da Cloudflare.
-[[kv_namespaces]]
-binding = "DRIVEFLIN_KV"
+GDRIVE_CLIENT_ID     = ""
+GDRIVE_CLIENT_SECRET = ""
+GDRIVE_REFRESH_TOKEN = ""
+GDRIVE_TEAM_DRIVE_ID = ""
+TMDB_API_KEY         = ""
+ADMIN_PASSWORD       = ""
+RCLONE_PASS          = ""
+RCLONE_SALT          = ""
 
 [[d1_databases]]
 binding = "DB"

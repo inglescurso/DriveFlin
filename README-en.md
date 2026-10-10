@@ -161,7 +161,7 @@ Deployment is 100% visual through your web browser, with no local CLI tools or c
    - **Project name:** `driveflin` *(or your preferred name)*.
    - **Deploy command:** `npx wrangler deploy` *(pre-filled)*.
    - Click the blue **Deploy** button!
-6. Cloudflare will start the build, detect the root `wrangler.toml`, and automatically link your `jellyfin_db_prod` database and create the `DRIVEFLIN_KV` namespace (where your credentials live)!
+6. Cloudflare will start the build, detect the root `wrangler.toml`, and automatically link your `jellyfin_db_prod` database!
 
 > [!NOTE]
 > **Database binding error?**  
@@ -169,26 +169,24 @@ Deployment is 100% visual through your web browser, with no local CLI tools or c
 
 ---
 
-### Step 4: Enter Your Credentials (all in `/setup`, no Worker variables)
-No secrets in the Cloudflare dashboard: DriveFlin keeps its configuration in **Cloudflare KV** (the `DRIVEFLIN_KV` namespace is created automatically on the first deploy), which survives redeploys and *Sync fork*.
+### Step 4: Add Google Drive Credentials & Secrets
+Once deployment finishes, add your Google Drive connection and optional settings:
 
-1. Open `https://driveflin.your-subdomain.workers.dev/setup` and sign in with `admin` / `admin`.
-2. Under **Credentials**, fill in:
+1. In your Worker's dashboard (`driveflin`), navigate to **Settings** > **Variables and Secrets**.
+2. Click **Add** and insert the following variables:
 
-   | Field | Required | Description |
-   | :--- | :---: | :--- |
-   | Google Client ID | ✅ | From [generator.driveflin.org](https://generator.driveflin.org). |
-   | Google Client Secret | ✅ | Same. |
-   | Google Refresh Token | ✅ | Same. |
-   | TMDB API Key | recommended | Free [TheMovieDB](https://www.themoviedb.org/settings/api) key. Without it, posters, overviews and metadata search are disabled. |
-   | Team Drive ID | optional | Google Shared/Team Drive ID. |
-   | rclone crypt password / salt | optional | Only if your files use Rclone Crypt. |
+   | Variable / Secret | Type | Description |
+   | :--- | :--- | :--- |
+   | `GDRIVE_CLIENT_ID` | Secret | Client ID generated in the Google Cloud Console. |
+   | `GDRIVE_CLIENT_SECRET` | Secret | Client Secret generated in the Google Cloud Console. |
+   | `GDRIVE_REFRESH_TOKEN` | Secret | Refresh Token generated at [generator.driveflin.org](https://generator.driveflin.org). |
+   | `TMDB_API_KEY` | Secret | *(Recommended)* Your free [TheMovieDB](https://www.themoviedb.org/settings/api) API key. Without it, posters, overviews and metadata search are disabled (v2 no longer ships a built-in key). |
+   | `ADMIN_PASSWORD` | Secret | *(Strongly recommended)* Initial admin password, used only when the admin user is created. If omitted, it is `admin`: change it on first login, since the server is on the internet. |
+   | `GDRIVE_TEAM_DRIVE_ID` | Secret | *(Optional)* Google Shared/Team Drive ID (leave blank if using personal My Drive). |
+   | `RCLONE_PASS` | Secret | *(Optional)* Password if your Google Drive files use Rclone Crypt. |
+   | `RCLONE_SALT` | Secret | *(Optional)* Salt if your Google Drive files use Rclone Crypt. |
 
-3. Click **Save**, then **Test connection**. Values are never shown in full again.
-4. **Change the admin password** (the page warns you while it is still `admin`): sign in to Jellyfin and change it under Profile > Password. Once changed, the new password is the one that counts; `ADMIN_PASSWORD` in `wrangler.toml` is only used for the first sign-in.
-
-> [!NOTE]
-> **Prefer Worker variables?** They still work: `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN`, `GDRIVE_TEAM_DRIVE_ID`, `TMDB_API_KEY`, `RCLONE_PASS` and `RCLONE_SALT` are read as a fallback. A value saved in `/setup` takes priority over the variable.
+3. Click **Save and Deploy** to apply the changes.
 
 ---
 
@@ -221,11 +219,14 @@ npx wrangler d1 create jellyfin_db_prod
 # 4. Execute initial database schema
 npx wrangler d1 execute jellyfin_db_prod --remote --file=schema.sql
 
-# 5. Deploy (the DRIVEFLIN_KV namespace is created automatically)
+# 5. Set secrets (including TMDB_API_KEY)
+npx wrangler secret put TMDB_API_KEY
+npx wrangler secret put GDRIVE_CLIENT_ID
+npx wrangler secret put GDRIVE_CLIENT_SECRET
+npx wrangler secret put GDRIVE_REFRESH_TOKEN
+
+# 6. Deploy Worker
 npx wrangler deploy
-
-# 6. Open https://YOUR-WORKER/setup (admin / admin) and fill in the credentials
-
 ```
 
 ---
@@ -235,7 +236,7 @@ npx wrangler deploy
 - **Real, Jellyfin-style authentication**: every login gets its own per-device token. All routes require it except those Jellyfin itself serves publicly (public system info, login user list, branding, images, web UI). Tokens are accepted via `Authorization: MediaBrowser ... Token="..."`, `X-Emby-Token` or `?api_key=`.
 - **Hashed passwords (PBKDF2)**; legacy plaintext passwords are upgraded on next login.
 - **Per-user isolation**; dashboard, libraries, backups and the Drive browser are admin-only.
-- **No credentials in the code**: Google Drive, TMDB and rclone are entered in `/setup` and stored in Cloudflare KV (or, if you prefer, in Worker variables).
+- **No credentials in the code**: Google Drive and TMDB come only from Worker secrets.
 - **Debug routes removed**; `/setup` and `/sync` require an admin login (HTTP Basic).
 - **Brute-force protection**, accurate container/MIME detection, no fake transcoding, and backups now include users and watch progress.
 
