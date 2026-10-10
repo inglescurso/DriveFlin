@@ -189,7 +189,7 @@ Once deployment finishes, add your Google Drive connection and optional settings
 3. Click **Save and Deploy** to apply the changes.
 
 > [!NOTE]
-> **You only fill these in once.** The first time DriveFlin is opened after saving, it stores these values in Cloudflare KV (`DRIVEFLIN_KV`, created automatically on deploy). A commit, Sync fork or redeploy that leaves the fields empty does not erase your configuration. To change a value, just fill in the field again.
+> **You only fill these in once.** The first time DriveFlin is opened after saving, it stores these values in Cloudflare KV (`DRIVEFLIN_CONFIG`, created automatically on deploy). A commit, Sync fork or redeploy that leaves the fields empty does not erase your configuration. To change a value, just fill in the field again.
 
 ---
 

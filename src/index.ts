@@ -41,7 +41,7 @@ type Bindings = {
   PASSWORD_HASH_ITERATIONS?: string;
   DB: D1Database;
   /** Guarda as variáveis de instalação para sobreviverem a redeploys (ver src/config.ts). */
-  DRIVEFLIN_KV?: KVNamespace;
+  DRIVEFLIN_CONFIG?: KVNamespace;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: { auth: SessionUser | null } }>();

@@ -1,4 +1,4 @@
-// Persistência das variáveis de instalação no Cloudflare KV (binding DRIVEFLIN_KV).
+// Persistência das variáveis de instalação no Cloudflare KV (binding DRIVEFLIN_CONFIG).
 //
 // Problema: os campos do [vars] do wrangler.toml (GDRIVE_CLIENT_ID etc.) aparecem na tela
 // de instalação da Cloudflare, mas a cada commit/redeploy pelo Git eles voltam ao valor
@@ -31,14 +31,14 @@ type Stored = Partial<Record<(typeof PERSISTED_VARS)[number], string>> & { updat
 let cache: { value: Stored; exp: number } | null = null;
 
 function hasKV(env: any): boolean {
-  return !!env?.DRIVEFLIN_KV && typeof env.DRIVEFLIN_KV.get === "function";
+  return !!env?.DRIVEFLIN_CONFIG && typeof env.DRIVEFLIN_CONFIG.get === "function";
 }
 
 async function readStored(env: any): Promise<Stored> {
   if (cache && Date.now() < cache.exp) return cache.value;
   let value: Stored = {};
   try {
-    const raw = await env.DRIVEFLIN_KV.get(KV_CONFIG_KEY);
+    const raw = await env.DRIVEFLIN_CONFIG.get(KV_CONFIG_KEY);
     if (raw) value = JSON.parse(raw) as Stored;
   } catch (e) {
     console.error("[config] falha ao ler o KV:", (e as any)?.message || e);
@@ -75,7 +75,7 @@ export async function withPersistedVars<T extends Record<string, any>>(env: T, c
   if (changed) {
     next.updatedAt = new Date().toISOString();
     cache = { value: next, exp: Date.now() + CACHE_TTL_MS };
-    const write = env.DRIVEFLIN_KV.put(KV_CONFIG_KEY, JSON.stringify(next)).catch((e: any) => {
+    const write = env.DRIVEFLIN_CONFIG.put(KV_CONFIG_KEY, JSON.stringify(next)).catch((e: any) => {
       console.error("[config] falha ao gravar no KV:", e?.message || e);
       cache = null;
     });
