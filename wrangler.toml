@@ -11,10 +11,10 @@ directory = "public"
 # Estes oito campos aparecem no painel da Cloudflare durante a instalação.
 # Eles permanecem aqui para que um novo usuário consiga fazer o setup.
 #
-# Deploys de manutenção devem usar "npm run deploy", que executa Wrangler
-# com --keep-vars e preserva os valores já preenchidos no painel. Não remova
-# este bloco e não use "wrangler deploy" sem --keep-vars em uma instalação
-# que tenha variáveis configuradas diretamente no painel.
+# Persistência: na primeira requisição depois de preenchidos, os valores são
+# gravados no KV (DRIVEFLIN_KV). Quando um commit/redeploy zerar estes campos,
+# o DriveFlin continua usando o que está salvo no KV. Para trocar um valor,
+# basta preencher o campo de novo. Não remova este bloco.
 # ─────────────────────────────────────────────────────────────────────────────
 [vars]
 GDRIVE_CLIENT_ID     = ""
@@ -25,6 +25,10 @@ TMDB_API_KEY         = ""
 ADMIN_PASSWORD       = ""
 RCLONE_PASS          = ""
 RCLONE_SALT          = ""
+
+# KV criado automaticamente no primeiro deploy (guarda as variáveis acima).
+[[kv_namespaces]]
+binding = "DRIVEFLIN_KV"
 
 [[d1_databases]]
 binding = "DB"

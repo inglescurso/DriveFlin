@@ -188,6 +188,9 @@ Após a implantação, adicione a sua conexão do Google Drive e personalizaçõ
 
 3. Clique em **Save and Deploy** (Salvar e implantar).
 
+> [!NOTE]
+> **Você só preenche uma vez.** Na primeira vez que o DriveFlin é aberto depois de salvar, ele guarda esses valores no Cloudflare KV (`DRIVEFLIN_KV`, criado automaticamente no deploy). Um commit, Sync fork ou redeploy que deixar os campos vazios não apaga a configuração. Para trocar um valor, basta preencher o campo de novo.
+
 ---
 
 ### Passo 5: Acessar a Interface e Configurar suas Mídias

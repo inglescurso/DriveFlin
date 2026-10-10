@@ -5,6 +5,7 @@ import { GoogleDrive } from "./gdrive";
 import { runSync } from "./sync";
 import { cleanMediaTitle, cleanEpisodeTitle, searchTmdb, getTmdbDetails, getTvSeasonEpisodes, searchTmdbRemote, getTmdbImages } from "./tmdb";
 import { createDatabaseBackup, listDatabaseBackups, restoreDatabaseBackup } from "./backup";
+import { withPersistedVars } from "./config";
 import {
   extractAuth,
   extractBasic,
@@ -39,6 +40,8 @@ type Bindings = {
   BRANDING_LOGO_FILE_ID?: string;
   PASSWORD_HASH_ITERATIONS?: string;
   DB: D1Database;
+  /** Guarda as variáveis de instalação para sobreviverem a redeploys (ver src/config.ts). */
+  DRIVEFLIN_KV?: KVNamespace;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: { auth: SessionUser | null } }>();
@@ -5199,12 +5202,14 @@ async function rewriteMePath(request: Request, env: Bindings): Promise<Request> 
 }
 
 export default {
-  async fetch(request: Request, env: Bindings, ctx: any) {
+  async fetch(request: Request, rawEnv: Bindings, ctx: any) {
+    // Variáveis vazias depois de um redeploy são completadas com o que foi salvo no KV.
+    const env = await withPersistedVars(rawEnv, ctx);
     return app.fetch(await rewriteMePath(request, env), env, ctx);
   },
-  async scheduled(event: any, env: Bindings, ctx: any) {
+  async scheduled(event: any, rawEnv: Bindings, ctx: any) {
     try {
-      ctx.waitUntil(runSync(env));
+      ctx.waitUntil(withPersistedVars(rawEnv, ctx).then((env) => runSync(env)));
     } catch (e) {
       console.error("Scheduled sync error:", e);
     }
